@@ -8,22 +8,16 @@ from pymargo.core import client as client_mode
 import pymofka_client as mofka
 import pyssg
 
-class DataContainer:
 
-    def __init__(self):
-        self.allocated = []
+def selector(metadata, descriptor):
+    return descriptor
 
-    def selector(self, metadata, descriptor):
-        return descriptor
-
-    def broker(self, metadata, descriptor):
-        data = bytearray(descriptor.size)
-        self.allocated.append((metadata, data))
-        return [data]
+def broker(metadata, descriptor):
+    data = bytearray(descriptor.size)
+    return [data]
 
 def main(protocol, ssg_file):
 
-    c = DataContainer()
     client = mofka.Client(Engine(protocol).mid)
     pyssg.init()
     service = client.connect(ssg_file)
@@ -32,7 +26,7 @@ def main(protocol, ssg_file):
     topic = service.open_topic(name)
 
     # Create a consumer
-    consumer = topic.consumer("my_consumer", batch_size=1, data_broker=c.broker, data_selector=c.selector)
+    consumer = topic.consumer("my_consumer", batch_size=1, data_broker=broker, data_selector=selector)
 
     f = consumer.pull()
     event = f.wait()
@@ -50,7 +44,7 @@ def main(protocol, ssg_file):
         data = event.data
         metadata = event.metadata
         print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", flush=True)
-        print("Metadata ", metadata, "Data ", data[0].tobytes().decode("utf-8", "ignore"), flush=True)
+        print("Metadata ", metadata, "Data ", data[0].decode("utf-8", "replace"), flush=True)
         try:
             if metadata["action"] == "stop":
                 bool = False

@@ -44,8 +44,10 @@ class MofkaPlugin(SchedulerPlugin):
 
         This runs at the end of the Scheduler startup process
         """
-        restart = str({"time" : time.time()})
-        self.producer.push({"action": "restart"}, restart.encode("utf-8"))
+        restart = str({"time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "restart"}, restart)
+        f.wait()
+        self.producer.flush()
 
     async def before_close(self):
         """Runs prior to any Scheduler shutdown logic"""
@@ -61,8 +63,10 @@ class MofkaPlugin(SchedulerPlugin):
         This runs at the beginning of the Scheduler shutdown process, but after
         workers have been asked to shut down gracefully
         """
-        close = str({"time" : time.time()})
-        self.producer.push({"action": "close"}, close.encode("utf-8"))
+        close = str({"time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "close"}, close)
+        f.wait()
+        self.producer.flush()
 
     def update_graph(
         self,
@@ -105,15 +109,16 @@ class MofkaPlugin(SchedulerPlugin):
                 It is recommended to allow plugins to accept more parameters to
                 ensure future compatibility.
         """
-        update_graph = str({"client": client, "keys": keys, "dependencies": dependencies, "time": time.time()})
-        f = self.producer.push({"action": "update_garph"}, update_graph.encode('utf-8'))
+        update_graph = str({"client": client, "keys": keys, "dependencies": dependencies, "time": time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "update_garph"}, update_graph)
         f.wait()
         self.producer.flush()
 
     def restart(self, scheduler):
         """Run when the scheduler restarts itself"""
         restrat = str({"time" : time.time()})
-        self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
+        f = self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
+        f.wait()
         self.producer.flush()
 
     def transition(
@@ -150,10 +155,9 @@ class MofkaPlugin(SchedulerPlugin):
         # Get full TaskState
         # ts = self.scheduler.tasks[key]
         # f = self.producer.push({"key": key}, str(ts).encode('utf-8'))
-        transition = str({"key" : key, "start": start, "finish" : finish, "stimulus_id" : stimulus_id, "time" : time.time()})
-        print("++++++++++++++++++++++++++++++++++++", flush=True)
-        print("transition ", transition, flush=True)
-        self.producer.push({"action": "transition"}, "transition".encode("utf-8"))
+        transition_data = str({"key" : key, "start": start, "finish" : finish, "stimulus_id" : stimulus_id, "time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "transition"}, transition_data)
+        f.wait()
         self.producer.flush()
 
     def add_worker(self, scheduler, worker: str):
@@ -170,8 +174,9 @@ class MofkaPlugin(SchedulerPlugin):
             ``SchedulerPlugin.add_worker`` hooks and the ordering may be subject
             to change without deprecation cycle.
         """
-        add_worker = str({"worker" : worker, "time" : time.time()})
-        self.producer.push({"action": "add_worker"}, add_worker.encode("utf-8"))
+        add_worker = str({"worker" : worker, "time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "add_worker"}, add_worker)
+        f.wait()
         self.producer.flush()
 
     def remove_worker(
@@ -189,27 +194,31 @@ class MofkaPlugin(SchedulerPlugin):
             ``SchedulerPlugin.remove_worker`` hooks and the ordering may be subject
             to change without deprecation cycle.
         """
-        rm_worker = str({"worker" : worker, "stimulus_id" : stimulus_id, "time" : time.time()})
-        self.producer.push({"action": "remove_worker"}, rm_worker.encode("utf-8"))
+        rm_worker = str({"worker" : worker, "stimulus_id" : stimulus_id, "time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "remove_worker"}, rm_worker)
+        f.wait()
         self.producer.flush()
 
     def add_client(self, scheduler, client: str):
         """Run when a new client connects"""
-        add_client = str({"client" : client, "time" : time.time()})
-        self.producer.push({"action": "add_client"}, add_client.encode("utf-8"))
+        add_client = str({"client" : client, "time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "add_client"}, add_client)
+        f.wait()
         self.producer.flush()
 
     def remove_client(self, scheduler, client: str):
         """Run when a client disconnects"""
-        rm_client = str({"client" : client, "time" : time.time()})
-        self.producer.push({"action": "remove_client"}, rm_client.encode("utf-8"))
+        rm_client = str({"client" : client, "time" : time.time()}).encode("utf-8")
+        f = self.producer.push({"action": "remove_client"}, rm_client)
+        f.wait()
         self.producer.flush()
 
-    # def log_event(self, topic: str, msg: Any):
-    #     """Run when an event is logged"""
-    #     log_event = {"topic" : topic, "message": msg, "time": time.time()}
-    #     self.producer.push({"action": "log_event"}, str(log_event).encode("utf-8"))
-    #     self.producer.flush()
+    def log_event(self, topic: str, msg: Any):
+        """Run when an event is logged"""
+        log_event = {"topic" : topic, "message": msg, "time": time.time()}
+        f = self.producer.push({"action": "log_event"}, str(log_event).encode("utf-8"))
+        f.wait()
+        self.producer.flush()
 
 @click.command()
 def dask_setup(scheduler):
