@@ -6,24 +6,33 @@ import time
 from pymargo.core import Engine
 from pymargo.core import client as client_mode
 import pymofka_client as mofka
-from  custom import my_broker_selector
 import pyssg
 
+class DataContainer:
+
+    def __init__(self):
+        self.allocated = []
+
+    def selector(self, metadata, descriptor):
+        return descriptor
+
+    def broker(self, metadata, descriptor):
+        data = bytearray(descriptor.size)
+        self.allocated.append((metadata, data))
+        return [data]
 
 def main(protocol, ssg_file):
+
+    c = DataContainer()
     client = mofka.Client(Engine(protocol).mid)
     pyssg.init()
     service = client.connect(ssg_file)
-
     # open a topic
-    name = "task_states"
+    name = "Dask"
     topic = service.open_topic(name)
 
     # Create a consumer
-    batchsize = mofka.AdaptiveBatchSize
-    thread_pool = mofka.ThreadPool(1)
-    ordering = mofka.Ordering.Strict
-    consumer = topic.consumer("my_consumer", batchsize, thread_pool, my_broker_selector.broker, my_broker_selector.selector, topic.partitions)
+    consumer = topic.consumer("my_consumer", batch_size=1, data_broker=c.broker, data_selector=c.selector)
 
     f = consumer.pull()
     event = f.wait()
@@ -40,11 +49,12 @@ def main(protocol, ssg_file):
         event = f.wait()
         data = event.data
         metadata = event.metadata
-        print("Data", data, flush=True)
-        print("metadata", metadata, flush=True)
+        print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++", flush=True)
+        print("Metadata ", metadata, "Data ", data[0].tobytes().decode("utf-8", "ignore"), flush=True)
         try:
             if metadata["action"] == "stop":
                 bool = False
+                exit
             print("boool", bool, flush=True)
         except:
             pass

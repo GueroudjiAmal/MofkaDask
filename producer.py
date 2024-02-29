@@ -41,20 +41,15 @@ def main(scheduler_file, protocol, ssg_file):
     thread_pool = mofka.ThreadPool(1)
     ordering = mofka.Ordering.Strict
     producer = topic.producer("my_producer", batchsize, thread_pool, ordering)
-    print("Producer Created", producer, flush=True)
 
     a = da.random.random((10, 10))
-    b = mul(a, 1000)
-    f = c.submit(add, a, b)
-    print("this is a dask future", f, flush=True)
-    r = f.result().compute()
+    b = da.random.random((10, 10))
+    a = add(a, b)
+    m = mul(a, b)
+    f = c.compute(m)
+    r = f.result()
     print("My result", r, flush=True)
     print("Done", flush=True)
-
-    ft = producer.push({"key": str(f)}, str(r).encode('ascii'))
-    ft.wait()
-    print("we have pushed the data", "key: ", f, "res: ", r, flush=True)
-    producer.flush()
 
 if __name__ == '__main__':
     import argparse
