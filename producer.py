@@ -11,14 +11,44 @@ import pyssg
 
 import dask.array as da
 from utils import file_exists
-from MofkaWorkerPlugin import MofkaWorkerPlugin
 import click
+
+
 def add(a, b):
     return a + b
 
 def mul(a, b):
     return a * b
 
+def mofkatask(a, b, mofka_protocol, ssg_file):
+    "example of ceating a mofka Task"
+    engine = Engine(mofka_protocol, use_progress_thread=True)
+    client = mofka.Client(engine.mid)
+    pyssg.init()
+    service = client.connect(ssg_file)
+
+    # create or open a topic
+    try:
+        name = "Numerics"
+        validator = mofka.Validator.from_metadata({"__type__":"my_validator:./custom/libmy_validator.so"})
+        selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./custom/libmy_partition_selector.so"})
+        serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./custom/libmy_serializer.so"})
+        service.create_topic(name, validator, selector, serializer)
+        service.add_memory_partition(name, 0)
+    except:
+        pass
+    topic = service.open_topic(name)
+
+    # create a producer
+    batchsize = mofka.AdaptiveBatchSize
+    thread_pool = mofka.ThreadPool(1)
+    ordering = mofka.Ordering.Strict
+    producer = topic.producer("my_producer", batchsize, thread_pool, ordering)
+    r = a + b
+    f = producer.push({"action": "get_result"}, r.to_bytes(8, byteorder='big'))
+    f.wait()
+    producer.flush()
+    return r
 
 @click.command()
 @click.option('--scheduler-file',
@@ -47,6 +77,9 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     f = c.compute(k)
     r = f.result()
     print("The computed result is :", r, flush=True)
+    f = c.submit(mofkatask, 1024, 2048, mofka_protocol, ssg_file)
+    r = f.result()
+    print("The computed result in mofkatask is :", r, flush=True)
     print("Done", flush=True)
     # c.shutdown()
 
@@ -54,7 +87,7 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     To push data from the dask client to mofka uncomment the following lines
     """
     """
-    engine = Engine(protocol, use_progress_thread=True)
+    engine = Engine(mofka_protocol, use_progress_thread=True)
     client = mofka.Client(engine.mid)
     pyssg.init()
     file_exists(ssg_file)
