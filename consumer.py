@@ -11,7 +11,6 @@ from utils import file_exists, my_data_selector, my_data_broker
 import logging
 
 import pandas as pd
-import csv
 import click
 
 
@@ -133,15 +132,14 @@ class MofkaConsumer():
                default="mofka.ssg",
                help="Mofka ssg file path")
 def main(mofka_protocol, ssg_file):
+    t0 = time.time()
     consumer = MofkaConsumer(mofka_protocol, ssg_file)
     consumer.get_data()
     consumer.teardown()
+    print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s", flush=True)
 
 
 if __name__ == '__main__':
-    t0 = time.time()
     main()
-    print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s")
-
 
 sys.exit(0)

@@ -12,8 +12,6 @@ import pyssg
 
 from distributed.diagnostics.plugin import WorkerPlugin
 
-#from utils import file_exists
-
 class MofkaWorkerPlugin(WorkerPlugin):
     """
     MofkaWorkerPlugin is a plugin that couples Dask distributed to Mofka through the worker.
@@ -32,7 +30,6 @@ class MofkaWorkerPlugin(WorkerPlugin):
         self.worker = worker
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
         self.client = mofka.Client(self.engine.mid)
-        # file_exists("mofka.ssg")
         pyssg.init()
         self.service = self.client.connect(ssg_file)
 

@@ -1,7 +1,6 @@
 import os.path
 import time
 
-
 def file_exists(file_path):
     while not os.path.exists(file_path):
         time.sleep(3)

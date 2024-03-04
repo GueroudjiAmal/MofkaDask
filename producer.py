@@ -34,6 +34,7 @@ def mul(a, b):
                default="mofka.ssg",
                help="Mofka ssg file path")
 def main(scheduler_file, mofka_protocol, ssg_file):
+    t0 = time.time()
     # Create a Dask Client
     c = Client(scheduler_file=scheduler_file)
     # Submit computations
@@ -47,7 +48,7 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     r = f.result()
     print("The computed result is :", r, flush=True)
     print("Done", flush=True)
-    c.shutdown()
+    # c.shutdown()
 
     """
     To push data from the dask client to mofka uncomment the following lines
@@ -81,10 +82,9 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     f.wait()
     producer.flush()
     """
-if __name__ == '__main__':
-    t0 = time.time()
-    main()
-    print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s")
+    print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s", flush=True)
 
+if __name__ == '__main__':
+    main()
 
 sys.exit(0)
