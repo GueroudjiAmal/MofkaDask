@@ -10,23 +10,58 @@ import dask
 import pyssg
 
 import dask.array as da
-
+from utils import file_exists
+from MofkaWorkerPlugin import MofkaWorkerPlugin
+import click
 def add(a, b):
     return a + b
 
 def mul(a, b):
     return a * b
 
-def main(scheduler_file, protocol, ssg_file):
+
+@click.command()
+@click.option('--scheduler-file',
+                type=str,
+                default="",
+                help="Dask scheduler file",)
+@click.option('--mofka-protocol',
+                type=str,
+                default="na+sm",
+                help="Mofka protocol",)
+@click.option('--ssg-file',
+               type=str,
+               default="mofka.ssg",
+               help="Mofka ssg file path")
+def main(scheduler_file, mofka_protocol, ssg_file):
+    # Create a Dask Client
+    c = Client(scheduler_file=scheduler_file)
+    # Submit computations
+    a = da.random.random((1024, 1024), chunks=(256, 256))
+    b = da.random.random((1024, 1024), chunks=(256, 256))
+    a = add(a, b)
+    m = mul(a, b)
+    k = m.max() - a.min() * m.max() - m.min()*a
+    k = k.mean()
+    f = c.compute(k)
+    r = f.result()
+    print("The computed result is :", r, flush=True)
+    print("Done", flush=True)
+    c.shutdown()
+
+    """
+    To push data from the dask client to mofka uncomment the following lines
+    """
+    """
     engine = Engine(protocol, use_progress_thread=True)
     client = mofka.Client(engine.mid)
     pyssg.init()
+    file_exists(ssg_file)
     service = client.connect(ssg_file)
 
-    c = Client(scheduler_file=scheduler_file)
-    # create a topic
+    # create or open a topic
     try:
-        name = "task_states"
+        name = "Numerics"
         validator = mofka.Validator.from_metadata({"__type__":"my_validator:./custom/libmy_validator.so"})
         selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./custom/libmy_partition_selector.so"})
         serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./custom/libmy_serializer.so"})
@@ -42,40 +77,13 @@ def main(scheduler_file, protocol, ssg_file):
     ordering = mofka.Ordering.Strict
     producer = topic.producer("my_producer", batchsize, thread_pool, ordering)
 
-    a = da.random.random((10, 10))
-    b = da.random.random((10, 10))
-    a = add(a, b)
-    m = mul(a, b)
-    f = c.compute(m)
-    r = f.result()
-    print("My result", r, flush=True)
-    print("Done", flush=True)
-
+    f = producer.push({"action": "get_result"}, r.data)
+    f.wait()
+    producer.flush()
+    """
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(add_help=True)
-
-    parser.add_argument('--scheduler_file',
-                        action='store',
-                        dest='scheduler_file',
-                        type=str,
-                        help='Scheduler file path')
-
-    parser.add_argument('--protocol',
-                        action='store',
-                        dest='protocol',
-                        type=str,
-                        help='Protocol')
-
-    parser.add_argument('--ssg_file',
-                        action='store',
-                        dest='ssg_file',
-                        type=str,
-                        help='SSG file path')
-
-    args = parser.parse_args()
     t0 = time.time()
-    main(args.scheduler_file, args.protocol, args.ssg_file)
+    main()
     print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s")
 
 
