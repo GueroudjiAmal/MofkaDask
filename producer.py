@@ -84,7 +84,7 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     # print("The computed result in mofkatask is :", r, flush=True)
 
     print("Done", flush=True)
-    # c.shutdown()
+    c.shutdown()
 
     """
     To push data from the dask client to mofka uncomment the following lines

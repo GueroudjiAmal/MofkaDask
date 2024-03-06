@@ -16,8 +16,7 @@ do
     WORKSPACE=$DIR/MOFKA/D${DATE}_W${NWORKER}/
     mkdir  -p $WORKSPACE
     cd $WORKSPACE
-    cp -r  $DIR/*.py  $DIR/scripts/* $DIR/*.json custom  .
+    cp -r  $DIR/*.py  $DIR/scripts/* $DIR/*.json $DIR/custom $DIR/plugins/* .
     echo Running in $WORKSPACE
-    export DARSHAN_LOG_DIR_PATH=$WORKSPACE
     qsub -A radix-io -l select=$NNODES:system=polaris -o $WORKSPACE polaris.sh
 done
