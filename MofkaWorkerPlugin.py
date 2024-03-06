@@ -115,6 +115,7 @@ class MofkaWorkerPlugin(WorkerPlugin):
         if kwargs.get("startstops"):
             startstops = kwargs["startstops"]
         transition_data = str({"key"            : str(key),
+                            #    "prefix"         : self.worker.state.tasks,
                                "start"          : start,
                                "finish"         : finish,
                                "stimulus_id"    : None,

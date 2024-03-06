@@ -185,7 +185,10 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         startstops = None
         if kwargs.get("startstops"):
             startstops = kwargs["startstops"]
+
         transition_data = str({"key"            : str(key),
+                               "prefix"         : self.scheduler.tasks[key].prefix.name,
+                               "group"          : self.scheduler.tasks[key].group.name,
                                "start"          : start,
                                "finish"         : finish,
                                "stimulus_id"    : stimulus_id,

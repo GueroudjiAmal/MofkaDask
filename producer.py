@@ -77,9 +77,12 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     f = c.compute(k)
     r = f.result()
     print("The computed result is :", r, flush=True)
-    f = c.submit(mofkatask, 1024, 2048, mofka_protocol, ssg_file)
-    r = f.result()
-    print("The computed result in mofkatask is :", r, flush=True)
+
+    # # This is to test without MofkaWorkerPlugin running,
+    # f = c.submit(mofkatask, 1024, 2048, mofka_protocol, ssg_file)
+    # r = f.result()
+    # print("The computed result in mofkatask is :", r, flush=True)
+
     print("Done", flush=True)
     # c.shutdown()
 
