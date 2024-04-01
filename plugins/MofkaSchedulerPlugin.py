@@ -12,9 +12,6 @@ import pyssg
 
 from distributed.diagnostics.plugin import SchedulerPlugin
 
-from utils import file_exists
-
-
 class MofkaSchedulerPlugin(SchedulerPlugin):
     """
     MofkaSchedulerPlugin couples Dask distributed witj Mofka through the Scheduler.
@@ -32,7 +29,6 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         self.scheduler = scheduler
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
         self.client = mofka.Client(self.engine.mid)
-        file_exists(ssg_file)
         pyssg.init()
         self.service = self.client.connect(ssg_file)
 
@@ -84,15 +80,15 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         This runs at the beginning of the Scheduler shutdown process, but after
         workers have been asked to shut down gracefully
         """
-        close = str({"time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "close"}, close)
-        f.wait()
-        self.producer.flush()
-        del self.producer
-        del self.topic
-        del self.service
-        del self.client
-        del self.engine
+        # close = str({"time" : time.time()}).encode("utf-8")
+        # f = self.producer.push({"action": "close"}, close)
+        # f.wait()
+        # self.producer.flush()
+        # del self.producer
+        # del self.topic
+        # del self.service
+        # del self.client
+        # del self.engine
 
     def update_graph(
         self,
@@ -146,6 +142,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
 
     def restart(self, scheduler):
         """Run when the scheduler restarts itself"""
+        # XXX
         restrat = str({"time" : time.time()})
         f = self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
         f.wait()
@@ -183,20 +180,44 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
             This may include worker ID, compute time, etc.
         """
         startstops = None
+        begins = None
+        ends = None
+        duration = None
+        size = None
+        thread = None
+        worker = None
+
         if kwargs.get("startstops"):
-            startstops = kwargs["startstops"]
+            startstops = kwargs["startstops"][0]
+            begins = startstops["start"]
+            ends = startstops["stop"]
+            duration = startstops["stop"] - startstops["start"]
+
+        if kwargs.get("thread"):
+            thtread = kwargs["thread"]
+
+        if kwargs.get("nbytes"):
+            size = kwargs["nbytes"]
+
+        if kwargs.get("worker"):
+            worker = kwargs["worker"]
 
         transition_data = str({"key"            : str(key),
+                               "thread"         : thread,
+                               "worker"         : worker,
                                "prefix"         : self.scheduler.tasks[key].prefix.name,
                                "group"          : self.scheduler.tasks[key].group.name,
                                "start"          : start,
                                "finish"         : finish,
                                "stimulus_id"    : stimulus_id,
-                               "called_from"    : ("scheduler", self.scheduler.address),
-                               "startstops"     : startstops,
+                               "called_from"    : self.scheduler.address,
+                               "begins"         : begins,
+                               "ends"           : ends,
+                               "duration"       : duration,
+                               "size"           : size,
                                "time"           : time.time()
                                }).encode("utf-8")
-        f = self.producer.push({"action": "transition"}, transition_data)
+        f = self.producer.push({"action": "scheduler_transition"}, transition_data)
         f.wait()
         self.producer.flush()
 

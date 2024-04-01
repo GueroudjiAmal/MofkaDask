@@ -10,7 +10,6 @@ import dask
 import pyssg
 
 import dask.array as da
-from utils import file_exists
 import click
 
 
@@ -93,7 +92,6 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     engine = Engine(mofka_protocol, use_progress_thread=True)
     client = mofka.Client(engine.mid)
     pyssg.init()
-    file_exists(ssg_file)
     service = client.connect(ssg_file)
 
     # create or open a topic

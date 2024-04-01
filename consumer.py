@@ -7,12 +7,17 @@ from pymargo.core import client as client_mode
 import pymofka_client as mofka
 import pyssg
 
-from utils import file_exists, my_data_selector, my_data_broker
 import logging
 
 import pandas as pd
 import click
 
+def my_data_selector(metadata, descriptor):
+    return descriptor
+
+def my_data_broker(metadata, descriptor):
+    data = bytearray(descriptor.size)
+    return [data]
 
 class MofkaConsumer():
 
@@ -28,8 +33,6 @@ class MofkaConsumer():
         self.client = mofka.Client(self.engine.mid)
         pyssg.init()
         logger.info("Mofka client created")
-
-        file_exists(ssg_file)
 
         self.service = self.client.connect(ssg_file)
         logger.info("Mofka service created")
@@ -56,7 +59,8 @@ class MofkaConsumer():
                                 data_selector=my_data_selector)
         logger.info("Mofka consumer %s is created", consumer_name)
 
-        self.transition_rec = pd.DataFrame()
+        self.scheduler_transition_rec = pd.DataFrame()
+        self.worker_transition_rec = pd.DataFrame()
         self.client_rec = pd.DataFrame()
         self.worker_rec = pd.DataFrame()
         self.graph_rec = pd.DataFrame()
@@ -64,11 +68,19 @@ class MofkaConsumer():
 
     def append_event_data(self, metadata , data):
 
-        if metadata["action"] == "transition":
-            if self.transition_rec.empty:
-                self.transition_rec = pd.DataFrame.from_records([data])
+        if metadata["action"] == "scheduler_transition":
+            if self.scheduler_transition_rec.empty:
+                self.scheduler_transition_rec = pd.DataFrame.from_records([data])
             else:
-                self.transition_rec = pd.concat([self.transition_rec,
+                self.scheduler_transition_rec = pd.concat([self.scheduler_transition_rec,
+                                                 pd.DataFrame.from_records([data])],
+                                                 ignore_index=True)
+
+        if metadata["action"] == "worker_transition":
+            if self.worker_transition_rec.empty:
+                self.worker_transition_rec = pd.DataFrame.from_records([data])
+            else:
+                self.worker_transition_rec = pd.concat([self.worker_transition_rec,
                                                  pd.DataFrame.from_records([data])],
                                                  ignore_index=True)
 
@@ -103,7 +115,7 @@ class MofkaConsumer():
                 self.client_rec = pd.concat([self.client_rec,
                                              pd.DataFrame.from_records([data])],
                                              ignore_index=True)
-            self.stop = True
+
         elif metadata["action"] == "close" or metadata["action"] == "before_close" : self.stop = True
 
 
@@ -117,7 +129,8 @@ class MofkaConsumer():
             self.append_event_data(metadata, data)
 
     def teardown(self):
-        self.transition_rec.to_csv("transition.csv")
+        self.scheduler_transition_rec.to_csv("scheduler_transition.csv")
+        self.worker_transition_rec.to_csv("worker_transition.csv")
         self.client_rec.to_csv("client.csv")
         self.worker_rec.to_csv("worker.csv")
         self.graph_rec.to_csv("graph.csv")

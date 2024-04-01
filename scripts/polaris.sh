@@ -104,7 +104,7 @@ mpiexec  -n 1
          --hostfile ConsumerNode
          --exclusive
          --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL
-                                        -             --ssg-file=$SSGFILE 1>> client.o 2>> client.e &
+                                                      --ssg-file=$SSGFILE 1>> client.o 2>> client.e &
 
 consumer_pid=$!
 
@@ -112,6 +112,3 @@ consumer_pid=$!
 wait $client_pid
 wait $consumer_pid
 wait
-
-
-                                                                                                                                                                                                 19,1          Top

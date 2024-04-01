@@ -111,19 +111,13 @@ class MofkaWorkerPlugin(WorkerPlugin):
         kwargs :
             More options passed when transitioning
         """
-        startstops = None
-        if kwargs.get("startstops"):
-            startstops = kwargs["startstops"]
         transition_data = str({"key"            : str(key),
-                            #    "prefix"         : self.worker.state.tasks,
                                "start"          : start,
                                "finish"         : finish,
-                               "stimulus_id"    : None,
-                               "called_from"    : ("worker", self.worker.name),
-                               "startstops"     : startstops,
+                               "called_from"    : self.worker.name,
                                "time"           : time.time()
                                }).encode("utf-8")
-        f = self.producer.push({"action": "transition"}, transition_data)
+        f = self.producer.push({"action": "worker_transition"}, transition_data)
         f.wait()
         self.producer.flush()
 
