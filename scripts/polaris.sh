@@ -5,13 +5,14 @@
 #PBS -l filesystems=home:grand:eagle
 
 source  ~/spack/share/spack/setup-env.sh
-spack env activate MofkaDask
+spack env activate mofkadask
 
 cd $PBS_O_WORKDIR
 
 SSGFILE=mofka.ssg
 SCHEFILE=scheduler.json
 CONFIGFILE=config.json
+DCONFIGFILE=config.txt
 PROTOCOL=na+sm
 
 # Split nodes between the different steps
@@ -86,8 +87,8 @@ client_pid=$!
 echo Scheduler booted, Client connected, launching workers
 
 NPROC=$((NWORKERS * NRANKS))
-mpiexec  -n ${NPROC}
-         --ppn ${RANKS}
+mpiexec  -n 1
+         --ppn 4
          -d ${NDEPTH}
          --hostfile WorkerNodes
          --exclusive
