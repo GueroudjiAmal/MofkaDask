@@ -11,7 +11,8 @@ import pyssg
 
 import dask.array as da
 import click
-
+import h5py
+file = "array.h5"
 
 def add(a, b):
     return a + b
@@ -67,8 +68,9 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     # Create a Dask Client
     c = Client(scheduler_file=scheduler_file)
     # Submit computations
-    a = da.random.random((1024, 1024), chunks=(256, 256))
-    b = da.random.random((1024, 1024), chunks=(256, 256))
+    f = h5py.File(file)
+    a = da.from_array(f["/array"]).rechunk((1, 1000, 1000))
+    b = da.random.random((10, 1000, 1000), chunks=(1, 1000, 1000))
     a = add(a, b)
     m = mul(a, b)
     k = m.max() - a.min() * m.max() - m.min()*a

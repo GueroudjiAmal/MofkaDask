@@ -194,7 +194,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
             duration = startstops["stop"] - startstops["start"]
 
         if kwargs.get("thread"):
-            thtread = kwargs["thread"]
+            thread = kwargs["thread"]
 
         if kwargs.get("nbytes"):
             size = kwargs["nbytes"]
