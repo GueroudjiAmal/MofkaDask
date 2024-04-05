@@ -1,19 +1,27 @@
 #!/bin/bash -l
 #PBS -l walltime=0:10:00
-#PBS -q debug-scaling
+#PBS -q debug-scaling   
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
+
+
+set -eu 
+cd $PBS_O_WORKDIR
+
+export FI_MR_CACHE_MAX_COUNT=0
+# use shared recv context in RXM; should improve scalability
+export FI_OFI_RXM_USE_SRX=1
 
 source  ~/spack/share/spack/setup-env.sh
 spack env activate mofkadask
 
-cd $PBS_O_WORKDIR
+spack find -fN
 
 SSGFILE=mofka.ssg
 SCHEFILE=scheduler.json
 CONFIGFILE=config.json
 DCONFIGFILE=config.txt
-PROTOCOL=na+sm
+PROTOCOL=cxi
 NDEPTH=12
 export DXT_ENABLE_IO_TRACE=1
 export DARSHAN_LOG_DIR_PATH=$PBS_O_WORKDIR
@@ -44,13 +52,14 @@ sed -n "${start_5},${end_5}p" $PBS_NODEFILE > ConsumerNode
 
 echo Creating Mofka Server
 
-mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile MofkaServerNode bedrock $PROTOCOL -c $CONFIGFILE &
+mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile MofkaServerNode bedrock $PROTOCOL -c $CONFIGFILE 1>>mofka.o 2>>mofka.e &
 
 # Wait for the SSGFILE to be created
 while ! [ -f $SSGFILE ]; do
-    sleep 3
+    sleep 1
     echo -n .
 done
+
 
 echo launching Scheduler
 mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile SchedulerNode --exclusive  --cpu-bind depth  dask scheduler --scheduler-file=$SCHEFILE  --preload MofkaSchedulerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> scheduler.o  2>> scheduler.e  &
