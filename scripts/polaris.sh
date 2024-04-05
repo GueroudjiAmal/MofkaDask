@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #PBS -l walltime=0:10:00
-#PBS -q debug-scaling   
+#PBS -q preemptable   
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
 
@@ -8,9 +8,9 @@
 set -eu 
 cd $PBS_O_WORKDIR
 
-export FI_MR_CACHE_MAX_COUNT=0
+# export FI_MR_CACHE_MAX_COUNT=0
 # use shared recv context in RXM; should improve scalability
-export FI_OFI_RXM_USE_SRX=1
+# export FI_OFI_RXM_USE_SRX=1
 
 source  ~/spack/share/spack/setup-env.sh
 spack env activate mofkadask
@@ -79,7 +79,6 @@ client_pid=$!
 # Launch Dask workers in the rest of the allocated nodes
 echo Scheduler booted, Client connected, launching workers
 
-NPROC=$((NWORKERS * NRANKS))
 mpiexec  -n 1  --ppn 4 -d ${NDEPTH} --hostfile WorkerNodes --exclusive  --cpu-bind depth  dask worker  --scheduler-file=$SCHEFILE  --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o 2>>worker.e  &
 
 # Connect the Mofka consumer client
