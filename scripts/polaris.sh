@@ -1,6 +1,6 @@
 #!/bin/bash -l
-#PBS -l walltime=0:10:00
-#PBS -q preemptable   
+#PBS -l walltime=0:30:00
+#PBS -q debug-scaling   
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
 
@@ -72,7 +72,7 @@ done
 
 # Connect the client to the Dask scheduler
 echo Connect Master Client
-mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ClientNode  --exclusive  --cpu-bind depth  `which python` producer.py --scheduler-file=$SCHEFILE  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> producer.o 2>> producer.e &
+mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ClientNode  --exclusive  --cpu-bind depth  `which python` image_processing.py --mode=distributed --scheduler-file=$SCHEFILE  1>> producer.o 2>> producer.e &
 
 client_pid=$!
 

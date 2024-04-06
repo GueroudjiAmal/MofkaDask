@@ -12,7 +12,6 @@ from   skimage import io
 
 from   distributed import Client, performance_report
 import time
-import yappi
 
 import yaml
 
@@ -45,27 +44,7 @@ def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, sche
     else:
         raise ValueError("Unknown launching mode %s" % mode)
 
-    # Validate yappi configuration
-    if yappi_config == "wall" or yappi_config is None:
-        yappi.set_clock_type("WALL")
-    elif yappi_config == "cpu":
-        yappi.set_clock_type("CPU")
-    else:
-        raise ValueError("Unknown mode for yappi, please specify CPU for cpu time, and WALL for Wall time")
-
-    # Validate Dask performance report
-    if dask_perf_report is None:
-        dask_perf_report = "dask_perf_report.html"
-
-    # Valide task stream file
-    if task_stream is None:
-        task_stream= "task_stream.yaml"
-
-    # Validate task graph file
-    if task_graph is None:
-        task_graph = "task_graph.out"
-
-    return client, dask_perf_report, task_graph, task_stream
+    return client
 
 
 def processing(image):
@@ -97,60 +76,36 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
     os.environ['DARSHAN_LOG_DIR_PATH'] = ReportDir
 
-    filename_pattern = os.path.join("Dataset/images", '*.png')
-    client, dask_perf_report, task_graph, task_stream = validate(mode, yappi_config, dask_perf_report,
-                                                                task_graph, task_stream, scheduler_file)
+    filename_pattern = os.path.join("/home/agueroudji/Dataset/images", '*.png')
+    client = validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
     # Main workflow
-    with (
-        performance_report(filename=ReportDir+dask_perf_report) as dask_perf,
-        yappi.run(),
-    ):
 
-        images = dask_image.imread.imread(filename_pattern)
-        print(images)
-        try:
-            normalized_images = (images - da.min(images)) * (255.0 / (da.max(images) - da.min(images)))
-            print(normalized_images)
-            normalized_images.map_blocks(save_file, NormalizedDir, "normalized-" , dtype=normalized_images.dtype, enforce_ndim=False).compute()
-        except Exception as e:
-            print("There was an excp ", e )
+    images = dask_image.imread.imread(filename_pattern)
+    print(images)
+    try:
+        normalized_images = (images - da.min(images)) * (255.0 / (da.max(images) - da.min(images)))
+        print(normalized_images)
+        normalized_images.map_blocks(save_file, NormalizedDir, "normalized-" , dtype=normalized_images.dtype, enforce_ndim=False).compute()
+    except Exception as e:
+        print("There was an excp ", e )
 
-        print("Normalized  images: ", normalized_images)
+    print("Normalized  images: ", normalized_images)
 
-        results = [processing(im) for im in normalized_images]
-        label_images = [r["label_image"] for r in results]
-        threshold_image = [r["threshold_image"] for r in results]
+    results = [processing(im) for im in normalized_images]
+    label_images = [r["label_image"] for r in results]
+    threshold_image = [r["threshold_image"] for r in results]
 
-        label_images = da.stack(label_images)
-        threshold_image = da.stack(threshold_image)
+    label_images = da.stack(label_images)
+    threshold_image = da.stack(threshold_image)
 
-        try:
-            label_images.map_blocks(save_file, LabeledDir, "labeled-", dtype=label_images.dtype, enforce_ndim=False).compute()
-        except Exception as e:
-            print("There was an excp ", e )
-
-        try:
-            threshold_image.map_blocks(save_file, ThresholdDir, "threshold-", dtype=threshold_image.dtype, enforce_ndim=False).compute()
-        except Exception as e:
-            print("There was an excp ", e )
-
-    # Output Reports for yappi
-    yappi.get_func_stats().save(ReportDir+"yappi_callgrind.prof", type="callgrind")
-    yappi.get_func_stats().save(ReportDir+"yappi_pstat.prof", type="pstat")
-
-    with open(ReportDir + "yappi_debug.yaml", 'w') as f:
-        sys.stdout = f
-        yaml.dump(yappi.get_func_stats().debug_print())
-        sys.stdout = stdout
-
-    # Output task stream
-    with open(ReportDir + task_stream, 'w') as f:
-        yaml.dump(client.get_task_stream(), f)
-
-    # Output distributed Configuration
-    with open(ReportDir + "distributed.yaml", 'w') as f:
-        yaml.dump(dask.config.get("distributed"),f)
-
+    try:
+        label_images.map_blocks(save_file, LabeledDir, "labeled-", dtype=label_images.dtype, enforce_ndim=False).compute()
+    except Exception as e:
+        print("There was an excp ", e )
+    try:
+        threshold_image.map_blocks(save_file, ThresholdDir, "threshold-", dtype=threshold_image.dtype, enforce_ndim=False).compute()
+    except Exception as e:
+        print("There was an excp ", e )
     client.shutdown()
 
 
@@ -188,7 +143,7 @@ if __name__ == "__main__":
                         dest='task_stream',
                         type=str,
                         help='None by default, if mentioned it corresponds to filename of the task-stream')
-    parser.add_argument('--scheduler_file',
+    parser.add_argument('--scheduler-file',
                         action='store',
                         dest='Scheduler_file',
                         type=str,
