@@ -1,0 +1,5 @@
+/home/agueroudji/MofkaDask/custom/build/CMakeFiles/my_validator.dir
+/home/agueroudji/MofkaDask/custom/build/CMakeFiles/my_serializer.dir
+/home/agueroudji/MofkaDask/custom/build/CMakeFiles/my_partition_selector.dir
+/home/agueroudji/MofkaDask/custom/build/CMakeFiles/edit_cache.dir
+/home/agueroudji/MofkaDask/custom/build/CMakeFiles/rebuild_cache.dir
