@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #PBS -l walltime=0:30:00
-#PBS -q debug-scaling   
+#PBS -q preemptable   
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
 
@@ -82,20 +82,19 @@ client_pid=$!
 # Launch Dask workers in the rest of the allocated nodes
 echo Scheduler booted, Client connected, launching workers
 
-# mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth --single-node-vni  dask worker --scheduler-file=$SCHEFILE --no-nanny --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
+mpiexec  -n 1 --ppn 12 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth --single-node-vni  dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
 
 # Connect the Mofka consumer client
 echo Connect Mofka consumer client
-mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ConsumerNode --exclusive --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> consumer.o 2>> consumer.e &
+mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ConsumerNode --exclusive --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> consumer.o 2>> consumer.e 
 consumer_pid=$!
 
-mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth   dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
 
-#echo Stopping bedrock
-#mpiexec -n 1 --ppn 1 bedrock-shutdown $PROTOCOL -s $SSGFILE 1> bedrock-shutdown.out 2> bedrock-shutdown.err
+echo Stopping bedrock
+mpiexec -n 1 --ppn 1 bedrock-shutdown $PROTOCOL -s $SSGFILE 1> bedrock-shutdown.out 2> bedrock-shutdown.err
 
 # Wait for the client process and Mofka consumer to be finished
 wait $client_pid
 wait $consumer_pid
-#wait $bedrock_pdi
+wait $bedrock_pdi
 wait

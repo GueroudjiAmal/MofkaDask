@@ -1,2 +1,0 @@
-/home/agueroudji/MofkaDask/MOFKA/D2024-04-10_18:51:17_W/consumer.py:75: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
-  self.scheduler_transition_rec = pd.concat([self.scheduler_transition_rec,
