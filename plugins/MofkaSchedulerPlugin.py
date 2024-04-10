@@ -294,7 +294,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
 @click.command()
 @click.option('--mofka-protocol',
                 type=str,
-                default="na+sm",
+                default="cxi",
                 help="Mofka protocol",)
 @click.option('--ssg-file',
                type=str,

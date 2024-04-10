@@ -25,9 +25,10 @@ class MofkaWorkerPlugin(WorkerPlugin):
                             filemode='w')
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
-
+        print(mofka_protocol, ssg_file, "blalalala", flush=True)
         # create mofka client
         self.worker = worker
+
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
         self.client = mofka.Client(self.engine.mid)
         pyssg.init()
@@ -125,8 +126,8 @@ class MofkaWorkerPlugin(WorkerPlugin):
 @click.command()
 @click.option('--mofka-protocol',
                 type=str,
-                default="na+sm",
-                help="Mofka protocol",)
+                default="cxi",
+                help="Mofka protocol")
 @click.option('--ssg-file',
                type=str,
                default="mofka.ssg",

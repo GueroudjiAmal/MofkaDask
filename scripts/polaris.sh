@@ -23,8 +23,9 @@ CONFIGFILE=config.json
 DCONFIGFILE=config.txt
 PROTOCOL=cxi
 NDEPTH=12
-export DXT_ENABLE_IO_TRACE=1
-export DARSHAN_LOG_DIR_PATH=$PBS_O_WORKDIR
+# export DXT_ENABLE_IO_TRACE=1
+# export DARSHAN_LOG_DIR_PATH=$PBS_O_WORKDIR
+# export HG_LOG_LEVEL=debug
 
 # Split nodes between the different steps
 total=$(wc -l $PBS_NODEFILE | awk '{print $1}')
@@ -52,7 +53,7 @@ sed -n "${start_5},${end_5}p" $PBS_NODEFILE > ConsumerNode
 
 echo Creating Mofka Server
 
-mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile MofkaServerNode bedrock $PROTOCOL -c $CONFIGFILE 1>>mofka.o 2>>mofka.e &
+mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile MofkaServerNode bedrock $PROTOCOL -c $CONFIGFILE 1>>bedrock.o 2>>bedrock.e &
 
 # Wait for the SSGFILE to be created
 while ! [ -f $SSGFILE ]; do
@@ -63,15 +64,17 @@ done
 
 echo launching Scheduler
 mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile SchedulerNode --exclusive  --cpu-bind depth  dask scheduler --scheduler-file=$SCHEFILE  --preload MofkaSchedulerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> scheduler.o  2>> scheduler.e  &
+bedrock_pdi=$!
 
 # Wait for the SCHEFILE to be created
 while ! [ -f $SCHEFILE ]; do
-    sleep 3
+    sleep 1
     echo -n .
 done
 
 # Connect the client to the Dask scheduler
 echo Connect Master Client
+
 mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ClientNode  --exclusive  --cpu-bind depth  `which python` image_processing.py --mode=distributed --scheduler-file=$SCHEFILE  1>> producer.o 2>> producer.e &
 
 client_pid=$!
@@ -79,15 +82,20 @@ client_pid=$!
 # Launch Dask workers in the rest of the allocated nodes
 echo Scheduler booted, Client connected, launching workers
 
-mpiexec  -n 1  --ppn 4 -d ${NDEPTH} --hostfile WorkerNodes --exclusive  --cpu-bind depth  dask worker  --scheduler-file=$SCHEFILE  --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o 2>>worker.e  &
+# mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth --single-node-vni  dask worker --scheduler-file=$SCHEFILE --no-nanny --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
 
 # Connect the Mofka consumer client
-echo Connect Mofka Client
+echo Connect Mofka consumer client
 mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ConsumerNode --exclusive --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> consumer.o 2>> consumer.e &
-
 consumer_pid=$!
+
+mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth   dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
+
+#echo Stopping bedrock
+#mpiexec -n 1 --ppn 1 bedrock-shutdown $PROTOCOL -s $SSGFILE 1> bedrock-shutdown.out 2> bedrock-shutdown.err
 
 # Wait for the client process and Mofka consumer to be finished
 wait $client_pid
 wait $consumer_pid
+#wait $bedrock_pdi
 wait
