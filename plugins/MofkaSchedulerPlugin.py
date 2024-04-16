@@ -35,9 +35,9 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         # create a topic
         topic_name = "Dask"
         try:
-            validator = mofka.Validator.from_metadata({"__type__":"my_validator:./custom/libmy_validator.so"})
-            selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./custom/libmy_partition_selector.so"})
-            serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./custom/libmy_serializer.so"})
+            validator = mofka.Validator.from_metadata({"__type__":"my_validator:./libmy_validator.so"})
+            selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./libmy_partition_selector.so"})
+            serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./libmy_serializer.so"})
             self.service.create_topic(topic_name, validator, selector, serializer)
             self.service.add_memory_partition(topic_name, 0)
             logging.info("Mofka topic %s is created", topic_name)

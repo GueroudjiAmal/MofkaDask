@@ -1,0 +1,10 @@
+Received Mode = distributed, Yappi = None, Dask_performance_report = None Task_graph = None, Task_stream = None, Scheduler_file = scheduler.json
+dask.array<_map_read_frame, shape=(151, 2467, 3394, 3), dtype=uint8, chunksize=(1, 2467, 3394, 3), chunktype=numpy.ndarray>
+dask.array<mul, shape=(151, 2467, 3394, 3), dtype=float64, chunksize=(1, 2467, 3394, 3), chunktype=numpy.ndarray>
+There was an excp  could not broadcast input array from shape (1,3426,4838,3) into shape (1,2467,3394,3)
+Normalized  images:  dask.array<mul, shape=(151, 2467, 3394, 3), dtype=float64, chunksize=(1, 2467, 3394, 3), chunktype=numpy.ndarray>
+There was an excp  could not broadcast input array from shape (1,1024,1816) into shape (1,1024,2028)
+There was an excp  could not broadcast input array from shape (1,1991,2048) into shape (1,2048,2048)
+
+
+Total time taken  = 247.64s

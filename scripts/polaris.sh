@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #PBS -l walltime=0:30:00
-#PBS -q preemptable   
+#PBS -q debug-scaling 
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
 
@@ -8,9 +8,6 @@
 set -eu 
 cd $PBS_O_WORKDIR
 
-# export FI_MR_CACHE_MAX_COUNT=0
-# use shared recv context in RXM; should improve scalability
-# export FI_OFI_RXM_USE_SRX=1
 
 source  ~/spack/share/spack/setup-env.sh
 spack env activate mofkadask
@@ -23,8 +20,8 @@ CONFIGFILE=config.json
 DCONFIGFILE=config.txt
 PROTOCOL=cxi
 NDEPTH=12
-# export DXT_ENABLE_IO_TRACE=1
-# export DARSHAN_LOG_DIR_PATH=$PBS_O_WORKDIR
+export DXT_ENABLE_IO_TRACE=1
+export DARSHAN_LOG_DIR_PATH=$PBS_O_WORKDIR
 # export HG_LOG_LEVEL=debug
 
 # Split nodes between the different steps
@@ -82,7 +79,7 @@ client_pid=$!
 # Launch Dask workers in the rest of the allocated nodes
 echo Scheduler booted, Client connected, launching workers
 
-mpiexec  -n 1 --ppn 12 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth --single-node-vni  dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
+DARSHAN_ENABLE_NONMPI=1 DARSHAN_CONFIG_PATH="config.txt" LD_PRELOAD="/home/agueroudji/spack/opt/spack/linux-sles15-zen3/gcc-11.2.0/darshan-runtime-dask-a3mpgplad6blsmn4vgvsce6mexozglja/lib/libdarshan.so" mpiexec -n 1 --ppn 4 -d ${NDEPTH} --hostfile WorkerNodes --exclusive --cpu-bind depth dask worker --nworkers='auto' --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
 
 # Connect the Mofka consumer client
 echo Connect Mofka consumer client
