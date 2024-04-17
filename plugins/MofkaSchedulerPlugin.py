@@ -62,17 +62,20 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         This runs at the end of the Scheduler startup process
         """
         restart = str({"time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "restart"}, restart)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "restart"}, restart)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling restart method when sending", str(restart))
 
     async def before_close(self):
         """Runs prior to any Scheduler shutdown logic"""
         before_close = str({"time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "before_close"}, before_close)
-        f.wait()
-        self.producer.flush()
-
+        try:
+            f = self.producer.push({"action": "before_close"}, before_close)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling before_close method when sending", str(before_close))
 
     async def close(self):
         """Run when the scheduler closes down
@@ -136,17 +139,21 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
                             "dependencies": dependencies,
                             "time": time.time()
                            }).encode("utf-8")
-        f = self.producer.push({"action": "update_graph"}, update_graph)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "update_graph"}, update_graph)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling update_graph method when sending", str(update_graph))
 
     def restart(self, scheduler):
         """Run when the scheduler restarts itself"""
         # XXX
         restrat = str({"time" : time.time()})
-        f = self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling restart method when sending", str(restart))
 
     def transition(
         self,
@@ -202,7 +209,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         if kwargs.get("worker"):
             worker = kwargs["worker"]
 
-        transition_data = str({"key"            : str(key),
+        transition_data =  {   "key"            : str(key),
                                "thread"         : thread,
                                "worker"         : worker,
                                "prefix"         : self.scheduler.tasks[key].prefix.name,
@@ -216,10 +223,13 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
                                "duration"       : duration,
                                "size"           : size,
                                "time"           : time.time()
-                               }).encode("utf-8")
-        f = self.producer.push({"action": "scheduler_transition"}, transition_data)
-        f.wait()
-        self.producer.flush()
+                               }
+        try:
+            f = self.producer.push({"action": "scheduler_transition"}, str(transition_data).encode("utf-8"))
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling transition method when sending", str(transition_data))
+
 
     def add_worker(self, scheduler, worker: str):
         """Run when a new worker enters the cluster
@@ -236,9 +246,11 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
             to change without deprecation cycle.
         """
         add_worker = str({"worker" : worker, "time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "add_worker"}, add_worker)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "add_worker"}, add_worker)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling add_worker method when sending", str(add_worker))
 
     def remove_worker(
         self, scheduler, worker: str, stimulus_id: str, **kwargs):
@@ -258,32 +270,40 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         rm_worker = str({"worker" : worker, "stimulus_id" : stimulus_id,
                          "time" : time.time()
                         }).encode("utf-8")
-        f = self.producer.push({"action": "remove_worker"}, rm_worker)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "remove_worker"}, rm_worker)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling remove_worker method when sending", str(rm_worker))
 
     def add_client(self, scheduler, client: str):
         """Run when a new client connects"""
         add_client = str({"client" : client,
                           "time" : time.time()
                         }).encode("utf-8")
-        f = self.producer.push({"action": "add_client"}, add_client)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "add_client"}, add_client)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling add_client method when sending", str(add_client))
 
     def remove_client(self, scheduler, client: str):
         """Run when a client disconnects"""
         rm_client = str({"client" : client, "time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "remove_client"}, rm_client)
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "remove_client"}, rm_client)
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling remove client method when sending", str(rm_client))
 
     def log_event(self, topic: str, msg: Any):
         """Run when an event is logged"""
         log_event = {"topic" : topic, "message": msg, "time": time.time()}
-        f = self.producer.push({"action": "log_event"}, str(log_event).encode("utf-8"))
-        f.wait()
-        self.producer.flush()
+        try:
+            f = self.producer.push({"action": "log_event"}, str(log_event).encode("utf-8"))
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling log_event method when sending", str(log_event))
 
     # TODO It maybe interesting to add to SchedulerPlugin inetface support for other methods.
     # def send_task_to_worker(self, worker: str, ts: TaskState, duration: float = -1):

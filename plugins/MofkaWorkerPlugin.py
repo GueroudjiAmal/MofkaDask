@@ -27,7 +27,8 @@ class MofkaWorkerPlugin(WorkerPlugin):
         logger.setLevel(logging.INFO) 
         # create mofka client
         self.worker = worker
-
+        self.commin = 0
+        self.commout = 0
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
         self.client = mofka.Client(self.engine.mid)
         pyssg.init()
@@ -70,10 +71,13 @@ class MofkaWorkerPlugin(WorkerPlugin):
     def teardown(self, worker):
         """Run when the worker to which the plugin is attached is closed, or
         when the plugin is removed."""
-        teardown = str({"time" : time.time()}).encode("utf-8")
-        f = self.producer.push({"action": "teardown"}, teardown)
-        f.wait()
-        self.producer.flush()
+        teardown = {"time" : time.time()}
+        try:
+            f = self.producer.push({"action": "remove_worker"}, str(teardown).encode("utf-8"))
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling remove_worker method when sending", str(teardown))
+
         del self.producer
         del self.topic
         del self.service
@@ -111,16 +115,46 @@ class MofkaWorkerPlugin(WorkerPlugin):
         kwargs :
             More options passed when transitioning
         """
-        transition_data = str({"key"            : str(key),
+        
+        transition_data = {"key"            : str(key),
                                "start"          : start,
                                "finish"         : finish,
                                "called_from"    : self.worker.name,
                                "time"           : time.time()
-                               }).encode("utf-8")
-        f = self.producer.push({"action": "worker_transition"}, transition_data)
-        f.wait()
-        self.producer.flush()
+                               }
+        try:
+            f = self.producer.push({"action": "worker_transition"}, str(transition_data).encode("utf-8"))
+            f.wait()
+        except Exception as Argument:
+            logging.exception("Exception while calling transition method when sending", str(transition_data))
 
+        l = self.commin
+        l2 = len(self.worker.transfer_incoming_log)
+        if l2 > l:
+            data = list(self.worker.transfer_incoming_log)[l-1:]
+            _ = [e.update({"type": "incoming_transfer", "called_from": self.worker.name, "time": time.time(), "keys": str(e["keys"])}) for e in data]
+            self.commin = len(self.worker.transfer_incoming_log)
+            for d in data:
+                try:
+                    f = self.producer.push({"action": "worker_transfer"}, str(d).encode("utf-8"))
+                    f.wait()
+                except Exception as Argument:
+                    logging.exception("Exception while calling transition method when sending", str(d))
+
+
+        l = self.commout
+        l2 = len(self.worker.transfer_outgoing_log)
+        if l2 > l:
+            data = list(self.worker.transfer_outgoing_log)[l-1:]
+            _ = [e.update({"type": "outgoing_transfer", "called_from": self.worker.name, "time": time.time(), "keys" : str(e["keys"])}) for e in data]
+            self.commout = len(self.worker.transfer_outgoing_log)
+            for d in data:
+                try:
+                    f = self.producer.push({"action": "worker_transfer"}, str(d).encode("utf-8"))
+                    f.wait()
+                except Exception as Argument:
+                    logging.exception("Exception while calling transition method when sending", str(d))
+        
 
 @click.command()
 @click.option('--mofka-protocol',

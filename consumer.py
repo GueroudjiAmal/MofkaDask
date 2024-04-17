@@ -61,6 +61,7 @@ class MofkaConsumer():
 
         self.scheduler_transition_rec = pd.DataFrame()
         self.worker_transition_rec = pd.DataFrame()
+        self.worker_transfer_rec = pd.DataFrame()
         self.client_rec = pd.DataFrame()
         self.worker_rec = pd.DataFrame()
         self.graph_rec = pd.DataFrame()
@@ -81,6 +82,14 @@ class MofkaConsumer():
                 self.worker_transition_rec = pd.DataFrame.from_records([data])
             else:
                 self.worker_transition_rec = pd.concat([self.worker_transition_rec,
+                                                 pd.DataFrame.from_records([data])],
+                                                 ignore_index=True)
+
+        if metadata["action"] == "worker_transfer":
+            if self.worker_transfer_rec.empty:
+                self.worker_transfer_rec = pd.DataFrame.from_records([data])
+            else:
+                self.worker_transfer_rec = pd.concat([self.worker_transfer_rec,
                                                  pd.DataFrame.from_records([data])],
                                                  ignore_index=True)
 
@@ -116,7 +125,7 @@ class MofkaConsumer():
                                              pd.DataFrame.from_records([data])],
                                              ignore_index=True)
 
-        elif metadata["action"] == "close" or metadata["action"] == "before_close" : self.stop = True
+        elif metadata["action"] == "remove_client" or metadata["action"] == "close" or metadata["action"] == "before_close" : self.stop = True
 
 
     def get_data(self):
@@ -124,13 +133,19 @@ class MofkaConsumer():
             f = self.consumer.pull()
             event = f.wait()
             data = event.data[0].decode("utf-8", "replace")
-            data = eval(data)
-            metadata = eval(event.metadata)
-            self.append_event_data(metadata, data)
+            try:
+                data = eval(data)
+                metadata = eval(event.metadata)
+                self.append_event_data(metadata, data)
+            except:
+                print("data failure: ", data, flush=True)
+            finally:
+                pass
 
     def teardown(self):
         self.scheduler_transition_rec.to_csv("scheduler_transition.csv")
         self.worker_transition_rec.to_csv("worker_transition.csv")
+        self.worker_transfer_rec.to_csv("worker_transfer.csv")
         self.client_rec.to_csv("client.csv")
         self.worker_rec.to_csv("worker.csv")
         self.graph_rec.to_csv("graph.csv")
@@ -156,3 +171,4 @@ if __name__ == '__main__':
     main()
 
 sys.exit(0)
+

@@ -4,7 +4,7 @@ MOD_ENABLE      DXT_POSIX
 
 # allocate 4096 file records for POSIX and MPI-IO modules
 # (darshan only allocates 1024 per-module by default)
-MAX_RECORDS     1409600      POSIX,MPI-IO
+MAX_RECORDS     14096000      POSIX,MPI-IO
 
 # the '*' specifier can be used to apply settings for all modules
 # in this case, we want all modules to ignore record names

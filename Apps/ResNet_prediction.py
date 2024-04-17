@@ -2,9 +2,8 @@ import sys
 import os
 
 import dask
-from   distributed import Client, performance_report
+from   distributed import Client
 import time
-import yappi
 
 import yaml
 import glob
@@ -13,11 +12,6 @@ import dask
 import torch
 from torchvision import transforms
 from PIL import Image
-import
-
-@dask.delayed
-def train():
-    return finetune_model()
 
 @dask.delayed
 def load(path, fs=__builtins__):
@@ -61,27 +55,7 @@ def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, sche
     else:
         raise ValueError("Unknown launching mode %s" % mode)
 
-    # Validate yappi configuration
-    if yappi_config == "wall" or yappi_config is None:
-        yappi.set_clock_type("WALL")
-    elif yappi_config == "cpu":
-        yappi.set_clock_type("CPU")
-    else:
-        raise ValueError("Unknown mode for yappi, please specify CPU for cpu time, and WALL for Wall time")
-
-    # Validate Dask performance report
-    if dask_perf_report is None:
-        dask_perf_report = "dask_perf_report.html"
-
-    # Valide task stream file
-    if task_stream is None:
-        task_stream= "task_stream.yaml"
-
-    # Validate task graph file
-    if task_graph is None:
-        task_graph = "task_graph.out"
-
-    return client, dask_perf_report, task_graph, task_stream
+    return client
 
 def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
 
@@ -97,35 +71,18 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
     os.environ['DARSHAN_LOG_DIR_PATH'] = ReportDir
 
-    client, dask_perf_report, task_graph, task_stream = validate(mode, yappi_config, dask_perf_report,
-                                                                task_graph, task_stream, scheduler_file)
+    client =  validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
     # Main workflow
-    with (
-        performance_report(filename=ReportDir+dask_perf_report) as dask_perf,
-        yappi.run(),
-    ):
-        model = torch.load("ResNet152.pt")
-        objs = [load(x) for x in glob.glob("imagenette2/val/*/*.*")]
-        tensors = [transform(x) for x in objs]
-        batches = [dask.delayed(torch.stack)(batch)
-           for batch in toolz.partition_all(10, tensors)]
-        dmodel = dask.delayed(model.cpu())
-        predictions = [predict(batch, dmodel) for batch in batches]
-        predictions = dask.compute(*predictions)
-        np.savetxt(ResultDir+"predictions.out" , predictions, delimiter=",")
 
-    # Output Reports for yappi
-    yappi.get_func_stats().save(ReportDir+"yappi_callgrind.prof", type="callgrind")
-    yappi.get_func_stats().save(ReportDir+"yappi_pstat.prof", type="pstat")
-
-    with open(ReportDir + "yappi_debug.yaml", 'w') as f:
-        sys.stdout = f
-        yaml.dump(yappi.get_func_stats().debug_print())
-        sys.stdout = stdout
-
-    # Output task stream
-    with open(ReportDir + task_stream, 'w') as f:
-        yaml.dump(client.get_task_stream(), f)
+    model = torch.load("Apps/ResNet152Wang.pt")
+    objs = [load(x) for x in glob.glob("../imagewang/val/*/*.*")]
+    tensors = [transform(x) for x in objs]
+    batches = [dask.delayed(torch.stack)(batch)
+        for batch in toolz.partition_all(10, tensors)]
+    dmodel = dask.delayed(model.cpu())
+    predictions = [predict(batch, dmodel) for batch in batches]
+    predictions = dask.compute(*predictions)
+    np.savetxt(ResultDir+"predictions.out" , predictions, delimiter=",")
 
     # Output distributed Configuration
     with open(ReportDir + "distributed.yaml", 'w') as f:
@@ -184,3 +141,4 @@ if __name__ == "__main__":
 
 
 sys.exit(0)
+

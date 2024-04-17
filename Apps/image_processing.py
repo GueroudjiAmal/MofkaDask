@@ -74,13 +74,14 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     LabeledDir = ResultDir+"Labeled/"
     ThresholdDir = ResultDir+"Threshold/"
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
-    os.environ['DARSHAN_LOG_DIR_PATH'] = ReportDir
+    os.environ['DARSHAN_LOG_DIR_PATH'] = "./"
 
     filename_pattern = os.path.join("/home/agueroudji/Dataset/images", '*.png')
     client = validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
     # Main workflow
 
     images = dask_image.imread.imread(filename_pattern)
+    #images = images[10]
     print(images)
     try:
         normalized_images = (images - da.min(images)) * (255.0 / (da.max(images) - da.min(images)))
@@ -106,6 +107,16 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
         threshold_image.map_blocks(save_file, ThresholdDir, "threshold-", dtype=threshold_image.dtype, enforce_ndim=False).compute()
     except Exception as e:
         print("There was an excp ", e )
+    #client.retire_workers(client.scheduler_info()['workers'])
+
+    # Output distributed Configuration
+    with open(ReportDir + "distributed.yaml", 'w') as f:
+        yaml.dump(dask.config.get("distributed"),f)
+    del threshold_image 
+    del label_image
+    del normalized_images
+    client.retire_workers(client.scheduler_info()['workers'])
+    time.sleep(3) #time to clean data  
     client.shutdown()
 
 

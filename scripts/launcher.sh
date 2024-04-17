@@ -5,15 +5,15 @@ spack env activate mofkadask
 DIR=$PWD
 echo $DIR
 
-RUNS=100
-NWORKERS=4
+RUNS=10
+NWORKERS=12
 
 for R in 1  #{1..$RUNS}
 do
-    NNODES=$(($NWORKERS / 4 + 4)) #2 workers per node, one node for client and one for scheduler one for Mofka consumer and one for mofka server
+    NNODES=$(($NWORKERS / 2 + 4)) #2 workers per node, one node for client and one for scheduler one for Mofka consumer and one for mofka server
     mkdir -p MOFKA
     DATE=$(date +"%Y-%m-%d_%T")
-    WORKSPACE=$DIR/MOFKA/D${DATE}_W${NWORKER}/
+    WORKSPACE=/eagle/radix-io/agueroudji/MOFKA/D${DATE}_W${NWORKERS}/
     mkdir  -p $WORKSPACE
     cd $WORKSPACE
     cp -r  $DIR/*.py $DIR/Apps/image_processing.py $DIR/scripts/* $DIR/*.json $DIR/*txt $DIR/custom/*.so $DIR/plugins/* .
