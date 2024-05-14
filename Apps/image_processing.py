@@ -113,9 +113,9 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     with open(ReportDir + "distributed.yaml", 'w') as f:
         yaml.dump(dask.config.get("distributed"),f)
     del threshold_image 
-    del label_image
+    del label_images
     del normalized_images
-    client.retire_workers(client.scheduler_info()['workers'])
+    
     time.sleep(3) #time to clean data  
     client.shutdown()
 

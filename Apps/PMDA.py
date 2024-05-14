@@ -1,10 +1,8 @@
 import sys
 import os
 
-from   distributed import Client, performance_report
+from   distributed import Client
 import time
-import yappi
-
 import yaml
 
 import MDAnalysis as mda
@@ -12,8 +10,9 @@ import numpy as np
 import pmda
 import dask
 from MDAnalysisData import datasets
-import nglview as nv
 from pmda import rms
+from pmda import custom
+from pmda import rdf
 
 
 def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
@@ -33,30 +32,22 @@ def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, sche
     else:
         raise ValueError("Unknown launching mode %s" % mode)
 
-    # Validate yappi configuration
-    if yappi_config == "wall" or yappi_config is None:
-        yappi.set_clock_type("WALL")
-    elif yappi_config == "cpu":
-        yappi.set_clock_type("CPU")
-    else:
-        raise ValueError("Unknown mode for yappi, please specify CPU for cpu time, and WALL for Wall time")
+    return client
 
-    # Validate Dask performance report
-    if dask_perf_report is None:
-        dask_perf_report = "dask_perf_report.html"
+def asp_finder(asp_sod, cutoff):
+    # Generate AtomGroup of binding sites
+    sites = asp_sod.select_atoms('resname ASP and around {} (resname SOD)'.format(
+           cutoff))
+    # Generate the list of the resids of binding sites
+    ix = np.unique(np.array(sites.residues.ix))
+    return ix
 
-    # Valide task stream file
-    if task_stream is None:
-        task_stream= "task_stream.yaml"
+def Z_SOD(ag):
+    Z = [ag.positions[i][2] for i in range(ag.n_atoms)]
+    T = [ag.universe.trajectory.time]
+    return np.append(T, Z)
 
-    # Validate task graph file
-    if task_graph is None:
-        task_graph = "task_graph.out"
-
-    return client, dask_perf_report, task_graph, task_stream
-
-
-def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
+def main(nhaa, mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
 
     # Prepare output dirs
     timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -70,38 +61,29 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
     os.environ['DARSHAN_LOG_DIR_PATH'] = ReportDir
 
-    client, dask_perf_report, task_graph, task_stream = validate(mode, yappi_config, dask_perf_report,
-                                                                task_graph, task_stream, scheduler_file)
+    client = validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
 
-    nhaa = datasets.fetch_nhaa_equilibrium()
+    #nhaa = datasets.fetch_nhaa_equilibrium()
 
     # Main workflow
-    with (
-        performance_report(filename=ReportDir+dask_perf_report) as dask_perf,
-        yappi.run(),
-    ):
 
-        u = mda.Universe(nhaa.topology, nhaa.trajectory)
-        ca = u.select_atoms('name CA')
-        u.trajectory[0]
-        ref = u.select_atoms('name CA')
-        rmsd = rms.RMSD(ca, ref)
-        rmsd.run(n_jobs=4, n_blocks=4)
-        # TODO print rmsd.rmsd
-        # add
-
-    # Output Reports for yappi
-    yappi.get_func_stats().save(ReportDir+"yappi_callgrind.prof", type="callgrind")
-    yappi.get_func_stats().save(ReportDir+"yappi_pstat.prof", type="pstat")
-
-    with open(ReportDir + "yappi_debug.yaml", 'w') as f:
-        sys.stdout = f
-        yaml.dump(yappi.get_func_stats().debug_print())
-        sys.stdout = stdout
-
-    # Output task stream
-    with open(ReportDir + task_stream, 'w') as f:
-        yaml.dump(client.get_task_stream(), f)
+    u = mda.Universe(nhaa.topology, nhaa.trajectory)
+    ca = u.select_atoms('name CA')
+    u.trajectory[0]
+    ref = u.select_atoms('name CA')
+    rmsd = rms.RMSD(ca, ref)
+    rmsd.run(n_jobs=4, n_blocks=4)
+    print("rmsd", rmsd.rmsd)
+    SOD = u.select_atoms('resname SOD')
+    parallel_z = custom.AnalysisFromFunction(Z_SOD, u, SOD)
+    parallel_z.run(n_jobs=4)
+    print("parallel_z", parallel_z.results)
+    ASP = u.select_atoms('resname ASP')
+    O_ASP = ASP.select_atoms('name OD1 or name OD2')
+    rdf_SOD_O = rdf.InterRDF(SOD, O_ASP, nbins=100, range=(0.0, 5.0))
+    rdf_SOD_O.run(n_jobs=4)
+    print("rdf_SOD_O.bins", rdf_SOD_O.bins)
+    print("rdf_SOD_O.rdf", rdf_SOD_O.rdf)
 
     # Output distributed Configuration
     with open(ReportDir + "distributed.yaml", 'w') as f:
@@ -144,7 +126,7 @@ if __name__ == "__main__":
                         dest='task_stream',
                         type=str,
                         help='None by default, if mentioned it corresponds to filename of the task-stream')
-    parser.add_argument('--scheduler_file',
+    parser.add_argument('--scheduler-file',
                         action='store',
                         dest='Scheduler_file',
                         type=str,
@@ -153,10 +135,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     print(f'Received Mode = {args.mode}, Yappi = {args.yappi_config}, Dask_performance_report = {args.dask_perf_report} Task_graph = {args.task_graph}, Task_stream = {args.task_stream}, Scheduler_file = {args.Scheduler_file}')
-
+    nhaa = datasets.fetch_nhaa_equilibrium()
     t0 = time.time()
-    main(args.mode, args.yappi_config, args.dask_perf_report, args.task_graph, args.task_stream, args.Scheduler_file)
+    main(nhaa, args.mode, args.yappi_config, args.dask_perf_report, args.task_graph, args.task_stream, args.Scheduler_file)
     print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s")
 
 
 sys.exit(0)
+

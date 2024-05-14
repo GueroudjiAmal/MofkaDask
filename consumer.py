@@ -109,15 +109,8 @@ class MofkaConsumer():
                                              pd.DataFrame.from_records([data])],
                                              ignore_index=True)
 
-        elif metadata["action"] == "add_client":
-            if self.client_rec.empty:
-                self.client_rec = pd.DataFrame.from_records([data])
-            else:
-                self.client_rec = pd.concat([self.client_rec,
-                                             pd.DataFrame.from_records([data])],
-                                             ignore_index=True)
-
-        elif metadata["action"] == "remove_client":
+        
+        elif metadata["action"] == "add_client" or metadata["action"] == "remove_client":
             if self.client_rec.empty:
                 self.client_rec = pd.DataFrame.from_records([data])
             else:

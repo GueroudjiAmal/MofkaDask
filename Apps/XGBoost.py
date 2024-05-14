@@ -4,40 +4,18 @@ import os
 import dask
 from   distributed import Client
 import time
-
 import yaml
-import glob
-import toolz
-import dask
-import torch
-from torchvision import transforms
-from PIL import Image
+
+from collections.abc import Iterator
+from datetime import datetime
+
+import dask.array as da
+import dask.dataframe as dd
+import distributed
 import numpy as np
-
-
-@dask.delayed
-def load(path, fs=__builtins__):
-    with fs.open(path, 'rb') as f:
-        img = Image.open(f).convert("RGB")
-        return img
-
-@dask.delayed
-def transform(img):
-    trn = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-    return trn(img)
-
-@dask.delayed
-def predict(batch, model):
-    with torch.no_grad():
-        out = model(batch)
-        _, predicted = torch.max(out, 1)
-        predicted = predicted.numpy()
-    return predicted
+import xgboost
+from dask_ml.metrics import mean_squared_error
+import pandas as pd
 
 
 def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
@@ -59,6 +37,16 @@ def validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, sche
 
     return client
 
+# Here we subset data for cross-validation
+def make_cv_splits(ddf,
+    n_folds: int = 5, ) -> Iterator[tuple[dd.DataFrame, dd.DataFrame]]:
+    frac = [1 / n_folds] * n_folds
+    splits = ddf.random_split(frac, shuffle=True)
+    for i in range(n_folds):
+        train = [splits[j] for j in range(n_folds) if j != i]
+        test = splits[i]
+        yield dd.concat(train), test
+
 def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file):
 
     # Prepare output dirs
@@ -71,26 +59,85 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     LabeledDir = ResultDir+"Labeled/"
     ThresholdDir = ResultDir+"Threshold/"
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
-    os.environ['DARSHAN_LOG_DIR_PATH'] = ReportDir
+    os.environ['DARSHAN_LOG_DIR_PATH'] = "./"
 
-    client =  validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
+    client = validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
     # Main workflow
+    ddf = dd.read_parquet("/grand/radix-io/agueroudji/data/Parquets")
+    # Under the hood, XGBoost converts floats to `float32`.
+    float_cols = ddf.select_dtypes(include="float").columns.tolist()
+    ddf = ddf.astype({c: np.float32 for c in float_cols})
 
-    model = torch.load("/eagle/radix-io/agueroudji/ResNet152WangModel.pt")
-    objs = [load(x) for x in glob.glob("/grand/radix-io/agueroudji/imagewang/val/*/*.*")]
-    tensors = [transform(x) for x in objs]
-    batches = [dask.delayed(torch.stack)(batch)
-        for batch in toolz.partition_all(10, tensors)]
-    dmodel = dask.delayed(model.cpu())
-    predictions = [predict(batch, dmodel) for batch in batches]
-    predictions = dask.compute(*predictions)
-    print(predictions)
-    #np.savetxt(ResultDir+"predictions.out" , predictions, delimiter=",")
+    object_cols = ddf.select_dtypes(include="object").columns.tolist()
+    ddf = ddf.astype({c: "category" for c in object_cols})
+
+    object_cols = ddf.select_dtypes(include="string").columns.tolist()
+    ddf = ddf.astype({c: "category" for c in object_cols})
+
+    dtime_cols = ddf.select_dtypes(include="datetime64[ns]").columns.tolist()
+    for c in dtime_cols:
+        ddf[c] = ddf[c].apply(lambda x: x.value)
+
+    categorical_vars = ddf.select_dtypes(include="category").columns.tolist()
+
+    # categorize() reads the whole input and then discards it.
+    # Let's read from disk only once.
+    ddf = ddf.persist()
+    
+    ddf = ddf.categorize(columns=categorical_vars)
+
+    # We will need to access this multiple times. Let's persist it.
+    ddf = ddf.persist()
+
+    start = datetime.now()
+    scores = []
+
+    for i, (train, test) in enumerate(make_cv_splits(ddf)):
+        print(f"Training/Test split #{i}")
+        y_train = train["trip_time"]
+        X_train = train.drop(columns=["trip_time"])
+        y_test = test["trip_time"]
+        X_test = test.drop(columns=["trip_time"])
+
+        print("Building DMatrix...")
+        d_train = xgboost.dask.DaskDMatrix(
+            None, X_train, y_train, enable_categorical=True
+        )
+
+        print("Training model...")
+        model = xgboost.dask.train(
+            None,
+            {"tree_method": "hist"},
+            d_train,
+            num_boost_round=4,
+            evals=[(d_train, "train")],
+        )
+
+        print("Running model on test data...")
+        predictions = xgboost.dask.predict(None, model, X_test)
+
+        print("Measuring accuracy of model vs. ground truth...")
+        score = mean_squared_error(
+            y_test.to_dask_array(),
+            predictions.to_dask_array(),
+            squared=False,
+            compute=False,
+        )
+        # Compute predictions and mean squared error for this iteration
+        # while we start the next one
+        scores.append(score.reshape(1).persist())
+        print("-" * 80)
+        print(model)
+
+    scores = da.concatenate(scores).compute()
+    print(f"RSME={scores.mean()} +/- {scores.std()}")
+    print(f"Total time:  {datetime.now() - start}")
 
     # Output distributed Configuration
     with open(ReportDir + "distributed.yaml", 'w') as f:
         yaml.dump(dask.config.get("distributed"),f)
-
+    client.retire_workers(client.scheduler_info()['workers'])
+    time.sleep(3) #time to clean data
     client.shutdown()
 
 
@@ -144,5 +191,4 @@ if __name__ == "__main__":
 
 
 sys.exit(0)
-
 
