@@ -4,7 +4,7 @@
 #PBS -A radix-io
 #PBS -l filesystems=home:grand:eagle
 
-set -eu 
+set -eu
 cd $PBS_O_WORKDIR
 
 ml load gcc/12.2.0 PrgEnv-gnu cudatoolkit-standalone libfabric/1.15.2.0 cray-mpich/8.1.25
@@ -13,7 +13,7 @@ spack env activate mofkadask
 
 spack find -fN
 
-SSGFILE=mofka.ssg
+GROUPFILE=mofka.json
 SCHEFILE=scheduler.json
 CONFIGFILE=config.json
 DCONFIGFILE=config.txt
@@ -52,15 +52,15 @@ echo Creating Mofka Server
 
 mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile MofkaServerNode bedrock $PROTOCOL -c $CONFIGFILE 1>>bedrock.o 2>>bedrock.e &
 
-# Wait for the SSGFILE to be created
-while ! [ -f $SSGFILE ]; do
+# Wait for the GROUPFILE to be created
+while ! [ -f $GROUPFILE ]; do
     sleep 1
     echo -n .
 done
 
 
 echo launching Scheduler
-mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile SchedulerNode --exclusive  --cpu-bind depth  dask scheduler --scheduler-file=$SCHEFILE  --preload MofkaSchedulerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> scheduler.o  2>> scheduler.e  &
+mpiexec  -n 1 --ppn 1 -d ${NDEPTH} --hostfile SchedulerNode --exclusive  --cpu-bind depth  dask scheduler --scheduler-file=$SCHEFILE  --preload MofkaSchedulerPlugin.py  --mofka-protocol=$PROTOCOL  --group-file=$GROUPFILE 1>> scheduler.o  2>> scheduler.e  &
 bedrock_pdi=$!
 
 # Wait for the SCHEFILE to be created
@@ -80,15 +80,15 @@ client_pid=$!
 # Launch Dask workers in the rest of the allocated nodes
 echo Scheduler booted, Client connected, launching workers
 
-DARSHAN_ENABLE_NONMPI=1 DARSHAN_CONFIG_PATH="config.txt" LD_PRELOAD="/home/agueroudji/spack/opt/spack/linux-sles15-zen3/gcc-11.2.0/darshan-runtime-dask-a3mpgplad6blsmn4vgvsce6mexozglja/lib/libdarshan.so" mpiexec -n 12 --ppn 2 -d 16  --hostfile WorkerNodes --exclusive --cpu-bind depth dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> worker.o  2>> worker.e  &
+DARSHAN_ENABLE_NONMPI=1 DARSHAN_CONFIG_PATH="config.txt" LD_PRELOAD="/home/agueroudji/spack/opt/spack/linux-sles15-zen3/gcc-11.2.0/darshan-runtime-dask-a3mpgplad6blsmn4vgvsce6mexozglja/lib/libdarshan.so" mpiexec -n 12 --ppn 2 -d 16  --hostfile WorkerNodes --exclusive --cpu-bind depth dask worker --scheduler-file=$SCHEFILE --preload MofkaWorkerPlugin.py  --mofka-protocol=$PROTOCOL  --group-file=$GROUPFILE 1>> worker.o  2>> worker.e  &
 
 # Connect the Mofka consumer client
 echo Connect Mofka consumer client
-mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ConsumerNode --exclusive --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL  --ssg-file=$SSGFILE 1>> consumer.o 2>> consumer.e 
+mpiexec  -n 1 --ppn 1  -d ${NDEPTH} --hostfile ConsumerNode --exclusive --cpu-bind depth  `which python` consumer.py --mofka-protocol=$PROTOCOL  --group-file=$GROUPFILE 1>> consumer.o 2>> consumer.e
 consumer_pid=$!
 
 #echo Stopping bedrock
-mpiexec -n 1 --ppn 1 bedrock-shutdown $PROTOCOL -s $SSGFILE 1> bedrock-shutdown.out 2> bedrock-shutdown.err 
+mpiexec -n 1 --ppn 1 bedrock-shutdown $PROTOCOL -s $GROUPFILE 1> bedrock-shutdown.out 2> bedrock-shutdown.err
 rm -rf __pycache__ 2024*
 
 # Wait for the client process and Mofka consumer to be finished

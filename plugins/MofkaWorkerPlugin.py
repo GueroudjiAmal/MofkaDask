@@ -6,9 +6,8 @@ import click
 import logging
 
 from pymargo.core import Engine
-import pymofka_client as mofka
+import mochi.mofka.client as mofka
 from typing import Any
-import pyssg
 
 from distributed.diagnostics.plugin import WorkerPlugin
 
@@ -18,29 +17,25 @@ class MofkaWorkerPlugin(WorkerPlugin):
     This plugin pushes information about the progress and state transition of Dask tasks in
     the worker.
     """
-    def __init__(self, worker, mofka_protocol, ssg_file):
+    def __init__(self, worker, mofka_protocol, group_file):
         logging.basicConfig(filename="MofkaWorkerPlugin.log",
                             format='%(asctime)s %(message)s',
                             datefmt='%m/%d/%Y %I:%M:%S %p',
                             filemode='w')
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO) 
+        logger.setLevel(logging.INFO)
         # create mofka client
         self.worker = worker
         self.commin = 0
         self.commout = 0
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
-        self.client = mofka.Client(self.engine.mid)
-        pyssg.init()
-        self.service = self.client.connect(ssg_file)
+        self.client = mofka.Client(self.engine)
+        self.service = self.client.connect(group_file)
 
         # create a topic
         topic_name = "Dask"
         try:
-            validator = mofka.Validator.from_metadata({"__type__":"my_validator:./libmy_validator.so"})
-            selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./libmy_partition_selector.so"})
-            serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./libmy_serializer.so"})
-            self.service.create_topic(topic_name, validator, selector, serializer)
+            self.service.create_topic(topic_name)
             self.service.add_memory_partition(topic_name, 0)
             logging.info("Mofka topic %s is created", topic_name)
         except:
@@ -115,15 +110,15 @@ class MofkaWorkerPlugin(WorkerPlugin):
         kwargs :
             More options passed when transitioning
         """
-        
-        transition_data = {"key"            : str(key),
-                               "start"          : start,
-                               "finish"         : finish,
-                               "called_from"    : self.worker.name,
-                               "time"           : time.time()
-                               }
+
+        transition_data = str({ "key"            : str(key),
+                            "start"          : start,
+                            "finish"         : finish,
+                            "called_from"    : self.worker.name,
+                            "time"           : time.time()
+                            }).encode("utf-8")
         try:
-            f = self.producer.push({"action": "worker_transition"}, str(transition_data).encode("utf-8"))
+            f = self.producer.push({"action": "worker_transition"}, transition_data)
             f.wait()
         except Exception as Argument:
             logging.exception("Exception while calling transition method when sending", str(transition_data))
@@ -136,7 +131,8 @@ class MofkaWorkerPlugin(WorkerPlugin):
             self.commin = len(self.worker.transfer_incoming_log)
             for d in data:
                 try:
-                    f = self.producer.push({"action": "worker_transfer"}, str(d).encode("utf-8"))
+                    dd = str(d).encode("utf-8")
+                    f = self.producer.push({"action": "worker_transfer"}, dd)
                     f.wait()
                 except Exception as Argument:
                     logging.exception("Exception while calling transition method when sending", str(d))
@@ -150,22 +146,23 @@ class MofkaWorkerPlugin(WorkerPlugin):
             self.commout = len(self.worker.transfer_outgoing_log)
             for d in data:
                 try:
-                    f = self.producer.push({"action": "worker_transfer"}, str(d).encode("utf-8"))
+                    dd = str(d).encode("utf-8")
+                    f = self.producer.push({"action": "worker_transfer"}, dd)
                     f.wait()
                 except Exception as Argument:
                     logging.exception("Exception while calling transition method when sending", str(d))
-        
+
 
 @click.command()
 @click.option('--mofka-protocol',
                 type=str,
-                default="cxi",
+                default="na+sm",
                 help="Mofka protocol")
-@click.option('--ssg-file',
+@click.option('--group-file',
                type=str,
-               default="mofka.ssg",
-               help="Mofka ssg file path")
+               default="mofka.json",
+               help="Mofka group file path")
 
-async def dask_setup(worker, mofka_protocol, ssg_file):
-    plugin = MofkaWorkerPlugin(worker, mofka_protocol, ssg_file)
+async def dask_setup(worker, mofka_protocol, group_file):
+    plugin = MofkaWorkerPlugin(worker, mofka_protocol, group_file)
     await worker.plugin_add(plugin)

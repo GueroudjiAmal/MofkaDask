@@ -76,7 +76,7 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     [os.mkdir(d) for d in [Dir, ReportDir, ResultDir, NormalizedDir, LabeledDir, ThresholdDir]]
     os.environ['DARSHAN_LOG_DIR_PATH'] = "./"
 
-    filename_pattern = os.path.join("/home/agueroudji/Dataset/images", '*.png')
+    filename_pattern = os.path.join("../Dataset/images", '*.png')
     client = validate(mode, yappi_config, dask_perf_report, task_graph, task_stream, scheduler_file)
     # Main workflow
 
@@ -112,11 +112,11 @@ def main(mode, yappi_config, dask_perf_report, task_graph, task_stream, schedule
     # Output distributed Configuration
     with open(ReportDir + "distributed.yaml", 'w') as f:
         yaml.dump(dask.config.get("distributed"),f)
-    del threshold_image 
+    del threshold_image
     del label_images
     del normalized_images
-    
-    time.sleep(3) #time to clean data  
+
+    time.sleep(3) #time to clean data
     client.shutdown()
 
 
@@ -154,6 +154,7 @@ if __name__ == "__main__":
                         dest='task_stream',
                         type=str,
                         help='None by default, if mentioned it corresponds to filename of the task-stream')
+
     parser.add_argument('--scheduler-file',
                         action='store',
                         dest='Scheduler_file',

@@ -4,8 +4,7 @@ import time
 
 from pymargo.core import Engine
 from pymargo.core import client as client_mode
-import pymofka_client as mofka
-import pyssg
+import mochi.mofka.client as mofka
 
 import logging
 
@@ -21,7 +20,7 @@ def my_data_broker(metadata, descriptor):
 
 class MofkaConsumer():
 
-    def __init__(self, mofka_protocol, ssg_file):
+    def __init__(self, mofka_protocol, group_file):
         logging.basicConfig(filename="MofkaConsumer.log",
                             format='%(asctime)s %(message)s',
                             datefmt='%m/%d/%Y %I:%M:%S %p',
@@ -30,18 +29,15 @@ class MofkaConsumer():
         logger.setLevel(logging.INFO)
 
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
-        self.client = mofka.Client(self.engine.mid)
-        pyssg.init()
+        self.client = mofka.Client(self.engine)
+
         logger.info("Mofka client created")
 
-        self.service = self.client.connect(ssg_file)
+        self.service = self.client.connect(group_file)
         logger.info("Mofka service created")
         topic_name = "Dask"
         try:
-            validator = mofka.Validator.from_metadata({"__type__":"my_validator:./custom/libmy_validator.so"})
-            selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./custom/libmy_partition_selector.so"})
-            serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./custom/libmy_serializer.so"})
-            self.service.create_topic(topic_name, validator, selector, serializer)
+            self.service.create_topic(topic_name)
             self.service.add_memory_partition(topic_name, 0)
             logger.info("Mofka topic %s is created", topic_name)
         except:
@@ -109,7 +105,7 @@ class MofkaConsumer():
                                              pd.DataFrame.from_records([data])],
                                              ignore_index=True)
 
-        
+
         elif metadata["action"] == "add_client" or metadata["action"] == "remove_client":
             if self.client_rec.empty:
                 self.client_rec = pd.DataFrame.from_records([data])
@@ -148,13 +144,13 @@ class MofkaConsumer():
                 type=str,
                 default="na+sm",
                 help="Mofka protocol",)
-@click.option('--ssg-file',
+@click.option('--group-file',
                type=str,
-               default="mofka.ssg",
-               help="Mofka ssg file path")
-def main(mofka_protocol, ssg_file):
+               default="mofka.json",
+               help="Mofka group file path")
+def main(mofka_protocol, group_file):
     t0 = time.time()
-    consumer = MofkaConsumer(mofka_protocol, ssg_file)
+    consumer = MofkaConsumer(mofka_protocol, group_file)
     consumer.get_data()
     consumer.teardown()
     print(f"\n\nTotal time taken  = {time.time()-t0:.2f}s", flush=True)

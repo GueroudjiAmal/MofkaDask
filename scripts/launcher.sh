@@ -16,7 +16,7 @@ do
     WORKSPACE=/eagle/radix-io/agueroudji/MOFKA/D${DATE}_W${NWORKERS}/
     mkdir  -p $WORKSPACE
     cd $WORKSPACE
-    cp -r  $DIR/*.py $DIR/Apps/image_processing.py $DIR/scripts/* $DIR/*.json $DIR/*txt $DIR/custom/*.so $DIR/plugins/* .
+    cp -r  $DIR/*.py $DIR/Apps/image_processing.py $DIR/scripts/* $DIR/*.json $DIR/*txt  $DIR/plugins/* .
     echo Running in $WORKSPACE
     qsub -A radix-io -l select=$NNODES:system=polaris -o $WORKSPACE polaris.sh
 done

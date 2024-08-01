@@ -6,9 +6,8 @@ import click
 import logging
 
 from pymargo.core import Engine
-import pymofka_client as mofka
+import mochi.mofka.client as mofka
 from typing import Any
-import pyssg
 
 from distributed.diagnostics.plugin import SchedulerPlugin
 
@@ -18,7 +17,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
     This plugin pushes information about the progress and state transition of Dask
     tasks in the scheduler, adding/removing clients/workers.
     """
-    def __init__(self, scheduler, mofka_protocol, ssg_file):
+    def __init__(self, scheduler, mofka_protocol, group_file):
         logging.basicConfig(filename="MofkaSchedulerPlugin.log",
                             format='%(asctime)s %(message)s',
                             datefmt='%m/%d/%Y %I:%M:%S %p',
@@ -28,17 +27,13 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         # create mofka client
         self.scheduler = scheduler
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
-        self.client = mofka.Client(self.engine.mid)
-        pyssg.init()
-        self.service = self.client.connect(ssg_file)
+        self.client = mofka.Client(self.engine)
+        self.service = self.client.connect(group_file)
 
         # create a topic
         topic_name = "Dask"
         try:
-            validator = mofka.Validator.from_metadata({"__type__":"my_validator:./libmy_validator.so"})
-            selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./libmy_partition_selector.so"})
-            serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./libmy_serializer.so"})
-            self.service.create_topic(topic_name, validator, selector, serializer)
+            self.service.create_topic(topic_name)
             self.service.add_memory_partition(topic_name, 0)
             logging.info("Mofka topic %s is created", topic_name)
         except:
@@ -148,9 +143,9 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
     def restart(self, scheduler):
         """Run when the scheduler restarts itself"""
         # XXX
-        restrat = str({"time" : time.time()})
+        restrat = str({"time" : time.time()}).encode("utf-8")
         try:
-            f = self.producer.push({"action": "restrat"}, restart.encode("utf-8"))
+            f = self.producer.push({"action": "restrat"}, restart)
             f.wait()
         except Exception as Argument:
             logging.exception("Exception while calling restart method when sending", str(restart))
@@ -209,23 +204,23 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         if kwargs.get("worker"):
             worker = kwargs["worker"]
 
-        transition_data =  {   "key"            : str(key),
-                               "thread"         : thread,
-                               "worker"         : worker,
-                               "prefix"         : self.scheduler.tasks[key].prefix.name,
-                               "group"          : self.scheduler.tasks[key].group.name,
-                               "start"          : start,
-                               "finish"         : finish,
-                               "stimulus_id"    : stimulus_id,
-                               "called_from"    : self.scheduler.address,
-                               "begins"         : begins,
-                               "ends"           : ends,
-                               "duration"       : duration,
-                               "size"           : size,
-                               "time"           : time.time()
-                               }
+        transition_data =  str({"key"            : str(key),
+                                "thread"         : thread,
+                                "worker"         : worker,
+                                "prefix"         : self.scheduler.tasks[key].prefix.name,
+                                "group"          : self.scheduler.tasks[key].group.name,
+                                "start"          : start,
+                                "finish"         : finish,
+                                "stimulus_id"    : stimulus_id,
+                                "called_from"    : self.scheduler.address,
+                                "begins"         : begins,
+                                "ends"           : ends,
+                                "duration"       : duration,
+                                "size"           : size,
+                                "time"           : time.time()
+                               }).encode("utf-8")
         try:
-            f = self.producer.push({"action": "scheduler_transition"}, str(transition_data).encode("utf-8"))
+            f = self.producer.push({"action": "scheduler_transition"}, transition_data)
             f.wait()
         except Exception as Argument:
             logging.exception("Exception while calling transition method when sending", str(transition_data))
@@ -316,11 +311,11 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
                 type=str,
                 default="cxi",
                 help="Mofka protocol",)
-@click.option('--ssg-file',
+@click.option('--group-file',
                type=str,
-               default="mofka.ssg",
-               help="Mofka ssg file path")
+               default="mofka.json",
+               help="Mofka group file path")
 
-def dask_setup(scheduler, mofka_protocol, ssg_file):
-    plugin = MofkaSchedulerPlugin(scheduler, mofka_protocol, ssg_file)
+def dask_setup(scheduler, mofka_protocol, group_file):
+    plugin = MofkaSchedulerPlugin(scheduler, mofka_protocol, group_file)
     scheduler.add_plugin(plugin)

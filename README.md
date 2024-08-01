@@ -42,32 +42,32 @@ Here are the steps to run Mofka-Dask Coupler:
 
 It can be done using command line:
 `bedrock na+sm -c config.json`
-This will create a ssg file called "mofka.ssg" here.
+This will create a group file called "mofka.json" here.
 
 ## Launch the Dask scheduler with the Mofka plugin:
 
-`dask scheduler --scheduler-file=scheduler.json --preload plugins/MofkaSchedulerPlugin.py --mofka-protocol=na+sm --ssg-file=mofka.ssg`
+`dask scheduler --scheduler-file=scheduler.json --preload plugins/MofkaSchedulerPlugin.py --mofka-protocol=na+sm --group-file=mofka.json`
 
 Connection information of the Dask scheduler will be written into `scheduler.json`
 
 The plugin takes two arguments:
 
  - `mofka-protocol` : which is specified while creating the mofka server, for instance `na+sm`
- - `ssg-file` : which is the path to the ssg file created while seting up the mofka server, here `mofka.ssg`
+ - `group-file` : which is the path to the group file created while seting up the mofka server, here `mofka.json`
 
 ## Launch the Dask workers with the Mofka plugin:
 
-`dask worker --scheduler-file=scheduler.json --preload plugins/MofkaWorkerPlugin.py --mofka-protocol=na+sm --ssg-file=mofka.ssg`
+`dask worker --scheduler-file=scheduler.json --preload plugins/MofkaWorkerPlugin.py --mofka-protocol=na+sm --group-file=mofka.json`
 
 ## Lauch the Dask Client:
 
-`python producer.py  --scheduler-file=scheduler.json --mofka-protocol=na+sm --ssg-file=mofka.ssg`
+`python producer.py  --scheduler-file=scheduler.json --mofka-protocol=na+sm --group-file=mofka.json`
 
 In this example we both have Dask Client and Mofka producer in the same script to showcase the fist coupling possibility.
 
 ## Launch a Mofka Consumer:
 
-`python consumer.py --mofka-protocol=na+sm --ssg-file=mofka.ssg`
+`python consumer.py --mofka-protocol=na+sm --group-file=mofka.json`
 
 This consumer only pocesses data pushed from the plugins.
 

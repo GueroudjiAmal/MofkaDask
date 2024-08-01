@@ -3,11 +3,10 @@ import sys
 
 from pymargo.core import Engine
 from pymargo.core import server as server_mode
-import pymofka_client as mofka
+import mochi.mofka.client as mofka
 
 from distributed import Client
 import dask
-import pyssg
 
 import dask.array as da
 import click
@@ -20,20 +19,16 @@ def add(a, b):
 def mul(a, b):
     return a * b
 
-def mofkatask(a, b, mofka_protocol, ssg_file):
+def mofkatask(a, b, mofka_protocol, group_file):
     "example of ceating a mofka Task"
     engine = Engine(mofka_protocol, use_progress_thread=True)
-    client = mofka.Client(engine.mid)
-    pyssg.init()
-    service = client.connect(ssg_file)
+    client = mofka.Client(engine)
+    service = client.connect(group_file)
 
     # create or open a topic
     try:
         name = "Numerics"
-        validator = mofka.Validator.from_metadata({"__type__":"my_validator:./custom/libmy_validator.so"})
-        selector = mofka.PartitionSelector.from_metadata({"__type__":"my_partition_selector:./custom/libmy_partition_selector.so"})
-        serializer = mofka.Serializer.from_metadata({"__type__":"my_serializer:./custom/libmy_serializer.so"})
-        service.create_topic(name, validator, selector, serializer)
+        service.create_topic(name)
         service.add_memory_partition(name, 0)
     except:
         pass
@@ -59,15 +54,17 @@ def mofkatask(a, b, mofka_protocol, ssg_file):
                 type=str,
                 default="na+sm",
                 help="Mofka protocol",)
-@click.option('--ssg-file',
+@click.option('--group-file',
                type=str,
-               default="mofka.ssg",
-               help="Mofka ssg file path")
-def main(scheduler_file, mofka_protocol, ssg_file):
+               default="mofka.json",
+               help="Mofka group file path")
+
+def main(scheduler_file, mofka_protocol, group_file):
     t0 = time.time()
     # Create a Dask Client
     c = Client(scheduler_file=scheduler_file)
     # Submit computations
+    print(c)
     f = h5py.File(file)
     a = da.from_array(f["/array"]).rechunk((1, 1000, 1000))
     b = da.random.random((10, 1000, 1000), chunks=(1, 1000, 1000))
@@ -80,7 +77,7 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     print("The computed result is :", r, flush=True)
 
     # # This is to test without MofkaWorkerPlugin running,
-    # f = c.submit(mofkatask, 1024, 2048, mofka_protocol, ssg_file)
+    # f = c.submit(mofkatask, 1024, 2048, mofka_protocol, group_file)
     # r = f.result()
     # print("The computed result in mofkatask is :", r, flush=True)
 
@@ -92,9 +89,8 @@ def main(scheduler_file, mofka_protocol, ssg_file):
     """
     """
     engine = Engine(mofka_protocol, use_progress_thread=True)
-    client = mofka.Client(engine.mid)
-    pyssg.init()
-    service = client.connect(ssg_file)
+    client = mofka.Client(engine)
+    service = client.connect(group_file)
 
     # create or open a topic
     try:
