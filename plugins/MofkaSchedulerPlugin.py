@@ -27,21 +27,16 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         # create mofka client
         self.scheduler = scheduler
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
-        self.client = mofka.Client(self.engine)
-        self.service = self.client.connect(group_file)
+        self.driver = mofka.MofkaDriver(group_file, self.engine)
 
         # create a topic
         topic_name = "Dask"
-        try:
-            self.service.create_topic(topic_name)
-            self.service.add_memory_partition(topic_name, 0)
-            logging.info("Mofka topic %s is created", topic_name)
-        except:
-            logging.info("Topic %s already exists", topic_name)
-            pass
+        if not self.driver.topic_exists(topic_name):
+            logging.info("Mofka topic %s is created by MofkaPlugin", topic_name)
+            self.driver.create_topic(topic_name)
+            self.driver.add_memory_partition(topic_name, 0)
 
-        self.topic = self.service.open_topic(topic_name)
-        logging.info("Mofka topic %s is opened by MofkaPlugin", topic_name)
+        self.topic = self.driver.open_topic(topic_name)
 
         # create a producer
         producer_name = "Dask_scheduler_producer"

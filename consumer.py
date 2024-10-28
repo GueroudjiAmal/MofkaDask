@@ -29,23 +29,14 @@ class MofkaConsumer():
         logger.setLevel(logging.INFO)
 
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
-        self.client = mofka.Client(self.engine)
-
-        logger.info("Mofka client created")
-
-        self.service = self.client.connect(group_file)
-        logger.info("Mofka service created")
+        self.driver = mofka.MofkaDriver(group_file, self.engine)
         topic_name = "Dask"
-        try:
-            self.service.create_topic(topic_name)
-            self.service.add_memory_partition(topic_name, 0)
-            logger.info("Mofka topic %s is created", topic_name)
-        except:
-            logger.info("Topic %s already exists", topic_name)
-            pass
+        if not self.driver.topic_exists(topic_name):
+            logging.info("Mofka topic %s is created by MofkaPlugin", topic_name)
+            self.driver.create_topic(topic_name)
+            self.driver.add_memory_partition(topic_name, 0)
 
-        self.topic = self.service.open_topic(topic_name)
-        logger.info("Mofka topic %s is opened by consumer", topic_name)
+        self.topic = self.driver.open_topic(topic_name)
 
         # Create a consumer
         consumer_name = "Dask_consumer"

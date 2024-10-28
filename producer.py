@@ -22,17 +22,15 @@ def mul(a, b):
 def mofkatask(a, b, mofka_protocol, group_file):
     "example of ceating a mofka Task"
     engine = Engine(mofka_protocol, use_progress_thread=True)
-    client = mofka.Client(engine)
-    service = client.connect(group_file)
 
-    # create or open a topic
-    try:
-        name = "Numerics"
-        service.create_topic(name)
-        service.add_memory_partition(name, 0)
-    except:
-        pass
-    topic = service.open_topic(name)
+    engine = Engine(mofka_protocol, use_progress_thread=True)
+    driver = mofka.MofkaDriver(group_file, engine)
+    topic_name = "Numerics"
+    if not driver.topic_exists(topic_name):
+        driver.create_topic(topic_name)
+        driver.add_memory_partition(topic_name, 0)
+
+    topic = driver.open_topic(topic_name)
 
     # create a producer
     batchsize = mofka.AdaptiveBatchSize
