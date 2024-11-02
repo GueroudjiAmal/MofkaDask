@@ -62,10 +62,7 @@ class MofkaWorkerPlugin(WorkerPlugin):
         """Run when the worker to which the plugin is attached is closed, or
         when the plugin is removed."""
         teardown = {"time" : time.time()}
-        try:
-            print("worker about to flush", flush=True)
-            self.producer.flush()
-            
+        try:    
             f = self.producer.push({"action": "remove_worker"}, str(teardown).encode("utf-8"))
             f.wait()
             
@@ -116,40 +113,45 @@ class MofkaWorkerPlugin(WorkerPlugin):
                             "called_from"    : self.worker.name,
                             "time"           : time.time()
                             }).encode("utf-8")
-        try:
-            f = self.producer.push({"action": "worker_transition"}, transition_data)
-            # f.wait()
-        except Exception as Argument:
-            logging.exception("Exception while calling transition method when sending", str(transition_data))
+        if "custom-placeholder-key" == str(key):
+            print(f"Worker {self.worker.name} about to flush", flush=True)
+            self.producer.flush()
+            print(f"Worker {self.worker.name} done with flush", flush=True)
+        else:
+            try:
+                f = self.producer.push({"action": "worker_transition"}, transition_data)
+                # f.wait()
+            except Exception as Argument:
+                logging.exception("Exception while calling transition method when sending", str(transition_data))
 
-        l = self.commin
-        l2 = len(self.worker.transfer_incoming_log)
-        if l2 > l:
-            data = list(self.worker.transfer_incoming_log)[l-1:]
-            _ = [e.update({"type": "incoming_transfer", "called_from": self.worker.name, "time": time.time(), "keys": str(e["keys"])}) for e in data]
-            self.commin = len(self.worker.transfer_incoming_log)
-            for d in data:
-                try:
-                    dd = str(d).encode("utf-8")
-                    f = self.producer.push({"action": "worker_transfer"}, dd)
-                    # f.wait()
-                except Exception as Argument:
-                    logging.exception("Exception while calling transition method when sending", str(d))
+            l = self.commin
+            l2 = len(self.worker.transfer_incoming_log)
+            if l2 > l:
+                data = list(self.worker.transfer_incoming_log)[l-1:]
+                _ = [e.update({"type": "incoming_transfer", "called_from": self.worker.name, "time": time.time(), "keys": str(e["keys"])}) for e in data]
+                self.commin = len(self.worker.transfer_incoming_log)
+                for d in data:
+                    try:
+                        dd = str(d).encode("utf-8")
+                        f = self.producer.push({"action": "worker_transfer"}, dd)
+                        # f.wait()
+                    except Exception as Argument:
+                        logging.exception("Exception while calling transition method when sending", str(d))
 
 
-        l = self.commout
-        l2 = len(self.worker.transfer_outgoing_log)
-        if l2 > l:
-            data = list(self.worker.transfer_outgoing_log)[l-1:]
-            _ = [e.update({"type": "outgoing_transfer", "called_from": self.worker.name, "time": time.time(), "keys" : str(e["keys"])}) for e in data]
-            self.commout = len(self.worker.transfer_outgoing_log)
-            for d in data:
-                try:
-                    dd = str(d).encode("utf-8")
-                    f = self.producer.push({"action": "worker_transfer"}, dd)
-                    # f.wait()
-                except Exception as Argument:
-                    logging.exception("Exception while calling transition method when sending", str(d))
+            l = self.commout
+            l2 = len(self.worker.transfer_outgoing_log)
+            if l2 > l:
+                data = list(self.worker.transfer_outgoing_log)[l-1:]
+                _ = [e.update({"type": "outgoing_transfer", "called_from": self.worker.name, "time": time.time(), "keys" : str(e["keys"])}) for e in data]
+                self.commout = len(self.worker.transfer_outgoing_log)
+                for d in data:
+                    try:
+                        dd = str(d).encode("utf-8")
+                        f = self.producer.push({"action": "worker_transfer"}, dd)
+                        # f.wait()
+                    except Exception as Argument:
+                        logging.exception("Exception while calling transition method when sending", str(d))
 
 
 @click.command()

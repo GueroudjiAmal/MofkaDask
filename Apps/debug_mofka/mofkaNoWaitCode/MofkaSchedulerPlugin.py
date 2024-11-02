@@ -28,7 +28,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         self.scheduler = scheduler
         self.engine = Engine(mofka_protocol, use_progress_thread=True)
         self.driver = mofka.MofkaDriver(group_file, self.engine)
-
+        self.count = 0
         # create a topic
         topic_name = "Dask"
         if not self.driver.topic_exists(topic_name):
@@ -60,9 +60,12 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
 
     async def before_close(self):
         """Runs prior to any Scheduler shutdown logic"""
+
+        for i in range(10):
+            print("Count: ", self.count)
         before_close = str({"time" : time.time()}).encode("utf-8")
-        print('About to flush stream', flush=True)
-        self.producer.flush()
+        # print('About to flush stream', flush=True)
+        # self.producer.flush()
         
         try:
             f = self.producer.push({"action": "before_close"}, before_close)
@@ -188,7 +191,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         size = None
         thread = None
         worker = None
-
+        self.count += 1
         if kwargs.get("startstops"):
             startstops = kwargs["startstops"][0]
             begins = startstops["start"]
@@ -203,6 +206,8 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
 
         if kwargs.get("worker"):
             worker = kwargs["worker"]
+        # with open('scheduler_test.txt', 'a') as file:
+        #         file.write("event" + '\n')
 
         transition_data =  str({"key"            : str(key),
                                 "thread"         : thread,
@@ -219,11 +224,17 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
                                 "size"           : size,
                                 "time"           : time.time()
                                }).encode("utf-8")
-        try:
-            f = self.producer.push({"action": "scheduler_transition"}, transition_data)
-            # f.wait()
-        except Exception as Argument:
-            logging.exception("Exception while calling transition method when sending", str(transition_data))
+        
+        if "custom-placeholder-key" == str(key):
+            print("Scheduler about to flush", flush=True)
+            self.producer.flush()
+            print("Scheduler done with flush", flush=True)
+        else:
+            try:
+                f = self.producer.push({"action": "scheduler_transition"}, transition_data)
+                # f.wait()
+            except Exception as Argument:
+                logging.exception("Exception while calling transition method when sending", str(transition_data))
 
 
     def add_worker(self, scheduler, worker: str):
@@ -297,6 +308,7 @@ class MofkaSchedulerPlugin(SchedulerPlugin):
         try:
             f = self.producer.push({"action": "log_event"}, str(log_event).encode("utf-8"))
             # f.wait()
+           
         except Exception as Argument:
             logging.exception("Exception while calling log_event method when sending", str(log_event))
 
